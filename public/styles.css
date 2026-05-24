@@ -38,10 +38,20 @@
 
   /* Pool tile */
   --pool-tile-bg:     #ffffff;
-  --pool-tile-border: #878a8c;
+  --pool-tile-border: #c8ccd0;
   --pool-tile-text:   #1a1a1b;
   --pool-tile-placed-bg:   #e8e8e8;
   --pool-tile-placed-text: #aaaaaa;
+
+  /* Pool tile — operator family accent (additive +/−) */
+  --pool-add-bg:      #eaf3ff;
+  --pool-add-border:  #93c5fd;
+  --pool-add-text:    #1e40af;
+
+  /* Pool tile — operator family accent (multiplicative ×/÷) */
+  --pool-mul-bg:      #fff7ed;
+  --pool-mul-border:  #fbbf24;
+  --pool-mul-text:    #92400e;
 
   /* Header */
   --header-border:    #d3d6da;
@@ -95,6 +105,14 @@ html.dark {
   --pool-tile-text:   #ffffff;
   --pool-tile-placed-bg:   #1a1a1b;
   --pool-tile-placed-text: #555557;
+
+  --pool-add-bg:      #1e2d47;
+  --pool-add-border:  #3b82f6;
+  --pool-add-text:    #93c5fd;
+
+  --pool-mul-bg:      #2d1f00;
+  --pool-mul-border:  #d97706;
+  --pool-mul-text:    #fcd34d;
 
   --header-border:    #3a3a3c;
 
@@ -328,12 +346,14 @@ main {
 }
 
 .row-result {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
-  min-width: 36px;
+  width: 52px;          /* fixed so all rows have identical tile-area width */
+  min-width: 52px;
   text-align: right;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Tiles ───────────────────────────────────────────── */
@@ -341,14 +361,15 @@ main {
   position: relative;
   flex: 1;
   aspect-ratio: 1;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 40px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(0.75rem, 3.5vw, 1rem);
-  font-weight: 700;
-  border-radius: 4px;
+  font-size: clamp(0.7rem, 3.2vw, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
   cursor: default;
   user-select: none;
   transform-style: preserve-3d;
@@ -368,10 +389,11 @@ main {
   background: var(--tile-filled-bg);
   color: var(--tile-filled-text);
   cursor: pointer;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15);
 }
 
 .tile.filled:hover {
-  filter: brightness(0.95);
+  filter: brightness(0.92);
 }
 
 /* Color tiles (post-submit feedback) */
@@ -469,7 +491,7 @@ html.color-blind .solution-row .tiles .tile {
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-transform: uppercase;
 }
 
@@ -478,57 +500,92 @@ html.color-blind .solution-row .tiles .tile {
   font-size: 0.68rem;
 }
 
+/* 5-column grid → 2 clean rows of 5 for the 10-op pool */
 #pool-tiles {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
 /* ── Pool tiles ──────────────────────────────────────── */
 .pool-tile {
   position: relative;
-  width: calc((100% - 48px) / 7);
-  min-width: 44px;
   aspect-ratio: 1;
+  min-height: 54px;
   background: var(--pool-tile-bg);
   border: 2px solid var(--pool-tile-border);
-  border-radius: 6px;
-  font-size: clamp(0.75rem, 3.5vw, 1rem);
-  font-weight: 700;
+  border-radius: 10px;
   color: var(--pool-tile-text);
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  gap: 1px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s;
   user-select: none;
 }
 
+/* Operator-family accent colours */
+.pool-tile[data-op="+"],
+.pool-tile[data-op="-"] {
+  background: var(--pool-add-bg);
+  border-color: var(--pool-add-border);
+  color: var(--pool-add-text);
+}
+
+.pool-tile[data-op="*"],
+.pool-tile[data-op="/"] {
+  background: var(--pool-mul-bg);
+  border-color: var(--pool-mul-border);
+  color: var(--pool-mul-text);
+}
+
 .pool-tile:hover:not(:disabled) {
-  filter: brightness(0.93);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.14), 0 2px 4px rgba(0,0,0,0.08);
 }
 
 .pool-tile:active:not(:disabled) {
-  transform: scale(0.95);
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.10);
 }
 
 .pool-tile.placed {
-  background: var(--pool-tile-placed-bg);
-  color: var(--pool-tile-placed-text);
-  border-color: var(--pool-tile-placed-bg);
+  background: var(--pool-tile-placed-bg) !important;
+  color: var(--pool-tile-placed-text) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
   cursor: default;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
-/* Keyboard hint label on pool tile */
+/* Two-line op display */
+.pool-tile .op-sym {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.pool-tile .op-num {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* Keyboard shortcut badge */
 .pool-tile .key-hint {
   position: absolute;
-  top: 2px;
-  right: 4px;
-  font-size: 0.55rem;
-  font-weight: 600;
-  color: var(--text-muted);
+  top: 3px;
+  right: 5px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: currentColor;
+  opacity: 0.45;
   line-height: 1;
 }
 

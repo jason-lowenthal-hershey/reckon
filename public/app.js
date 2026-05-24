@@ -473,12 +473,16 @@ function renderPool() {
   const placedKeys = new Set(currentGuess.map(opKey));
   const isOver     = gameState.today.status !== 'in_progress';
 
+  // Key hint: 1–9 for indices 0–8, 0 for index 9
+  const keyHint = idx => idx < 9 ? String(idx + 1) : '0';
+
   puzzle.pool.forEach((op, idx) => {
     const isPlaced = placedKeys.has(opKey(op));
     const btn      = document.createElement('button');
     btn.type       = 'button';
     btn.className  = 'pool-tile' + (isPlaced ? ' placed' : '');
-    btn.setAttribute('aria-label', `${formatOp(op)}, press ${idx + 1} to place`);
+    btn.dataset.op  = op.operator;   // used by CSS for family colours
+    btn.setAttribute('aria-label', `${formatOp(op)}, press ${keyHint(idx)} to place`);
     btn.setAttribute('data-idx', idx);
 
     if (isPlaced || isOver) {
@@ -487,17 +491,25 @@ function renderPool() {
       btn.addEventListener('click', () => onPoolTileClick(op, idx));
     }
 
-    // Main label text
-    const label      = document.createElement('span');
-    label.textContent = formatOp(op);
+    // Operator symbol (large) + operand (smaller) — two-line visual
+    const sym = document.createElement('span');
+    sym.className   = 'op-sym';
+    sym.textContent = OP_DISPLAY[op.operator] || op.operator;
+    sym.setAttribute('aria-hidden', 'true');
 
-    // Keyboard hint
-    const hint       = document.createElement('span');
+    const num = document.createElement('span');
+    num.className   = 'op-num';
+    num.textContent = op.operand;
+    num.setAttribute('aria-hidden', 'true');
+
+    // Keyboard shortcut hint badge
+    const hint = document.createElement('span');
     hint.className   = 'key-hint';
-    hint.textContent = String(idx + 1);
+    hint.textContent = keyHint(idx);
     hint.setAttribute('aria-hidden', 'true');
 
-    btn.appendChild(label);
+    btn.appendChild(sym);
+    btn.appendChild(num);
     btn.appendChild(hint);
     container.appendChild(btn);
   });
@@ -711,12 +723,12 @@ function onKeydown(e) {
 
   const key = e.key;
 
-  // Number keys 1–7: place pool tile at that index
-  if (/^[1-7]$/.test(key)) {
-    const poolIndex = parseInt(key, 10) - 1;
+  // Number keys 1–9 → pool indices 0–8; 0 → pool index 9
+  const KEY_TO_IDX = { '1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,'9':8,'0':9 };
+  if (key in KEY_TO_IDX) {
+    const poolIndex = KEY_TO_IDX[key];
     if (poolIndex < puzzle.pool.length) {
       const op = puzzle.pool[poolIndex];
-      // Only if not already placed and we have room
       if (!currentGuess.some(o => opEquals(o, op)) && currentGuess.length < OPS_PER_GUESS) {
         onPoolTileClick(op, poolIndex);
       }
