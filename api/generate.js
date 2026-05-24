@@ -1,6 +1,6 @@
 'use strict';
 
-const { kv } = require('@vercel/kv');
+const { put, list } = require('@vercel/blob');
 const { generatePuzzle } = require('../lib/generator');
 
 const LAUNCH_DATE = '2026-05-23'; // Launch day is puzzle #1
@@ -10,7 +10,7 @@ const LAUNCH_DATE = '2026-05-23'; // Launch day is puzzle #1
  *
  * Authorization: Bearer <CRON_SECRET>
  *
- * Generates today's puzzle and stores it in KV if it doesn't already exist.
+ * Generates today's puzzle and stores it in Blob if it doesn't already exist.
  * Idempotent: safe to call multiple times for the same day.
  *
  * IMPORTANT: never log puzzle contents (start, target, pool, solution).
@@ -28,24 +28,25 @@ module.exports = async function handler(req, res) {
   }
 
   const today = utcDateString();
-  const key = `puzzle:${today}`;
+  const pathname = `puzzles/${today}.json`;
 
   // --- Idempotency check ---
-  let existing;
   try {
-    existing = await kv.get(key);
+    const { blobs } = await list({ prefix: `puzzles/${today}`, limit: 1 });
+    if (blobs.length > 0) {
+      // Fetch just enough to get the puzzleNumber — don't log puzzle contents
+      const existingRes = await fetch(blobs[0].url);
+      const existing = await existingRes.json();
+      console.log(`[generate] Puzzle already exists for ${today}`);
+      return res.status(200).json({
+        message: 'Puzzle already exists for today',
+        date: today,
+        puzzleNumber: existing.puzzleNumber,
+      });
+    }
   } catch (err) {
-    console.error(`[generate] KV read error for ${today}:`, err.message);
+    console.error(`[generate] Blob read error for ${today}:`, err.message);
     return res.status(500).json({ error: 'Storage read failed', date: today });
-  }
-
-  if (existing) {
-    console.log(`[generate] Puzzle already exists for ${today}`);
-    return res.status(200).json({
-      message: 'Puzzle already exists for today',
-      date: today,
-      puzzleNumber: existing.puzzleNumber,
-    });
   }
 
   // --- Compute puzzle number ---
@@ -60,7 +61,7 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Puzzle generation failed', date: today });
   }
 
-  // --- Persist to KV ---
+  // --- Persist to Blob ---
   const doc = {
     _id: today,
     puzzleNumber: puzzle.puzzleNumber,
@@ -72,9 +73,14 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    await kv.set(key, doc);
+    await put(pathname, JSON.stringify(doc), {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
   } catch (err) {
-    console.error(`[generate] KV write error for ${today}:`, err.message);
+    console.error(`[generate] Blob write error for ${today}:`, err.message);
     return res.status(500).json({ error: 'Storage write failed', date: today });
   }
 

@@ -1,12 +1,12 @@
 'use strict';
 
-const { kv } = require('@vercel/kv');
+const { list } = require('@vercel/blob');
 
 /**
  * GET /api/today
  *
- * Returns today's puzzle from Vercel KV.
- * KV key: puzzle:YYYY-MM-DD (UTC date)
+ * Returns today's puzzle from Vercel Blob.
+ * Blob path: puzzles/YYYY-MM-DD.json
  *
  * Responds:
  *   200 - puzzle document (including solution)
@@ -28,20 +28,21 @@ module.exports = async function handler(req, res) {
   }
 
   const today = utcDateString();
-  const key = `puzzle:${today}`;
+  const prefix = `puzzles/${today}`;
 
   let puzzle;
   try {
-    puzzle = await kv.get(key);
+    const { blobs } = await list({ prefix, limit: 1 });
+    if (!blobs.length) {
+      return res.status(503).json({
+        error: "Today's puzzle is being prepared. Please refresh in a moment.",
+        date: today,
+      });
+    }
+    const blobRes = await fetch(blobs[0].url);
+    puzzle = await blobRes.json();
   } catch (err) {
-    console.error(`[today] KV read error for ${key}:`, err.message);
-    return res.status(503).json({
-      error: "Today's puzzle is being prepared. Please refresh in a moment.",
-      date: today,
-    });
-  }
-
-  if (!puzzle) {
+    console.error(`[today] Blob read error for ${prefix}:`, err.message);
     return res.status(503).json({
       error: "Today's puzzle is being prepared. Please refresh in a moment.",
       date: today,

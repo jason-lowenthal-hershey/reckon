@@ -10,7 +10,7 @@ A daily math puzzle web app. Transform a starting number into a target using 5 o
 |---|---|
 | Frontend | Vanilla JS + HTML + CSS (no framework, no build step) |
 | API | Vercel Serverless Functions (Node.js) |
-| Storage | Vercel KV (Redis) |
+| Storage | Vercel Blob (object storage) |
 | Cron | Vercel Cron (daily puzzle generation at 00:05 UTC) |
 | Hosting | Vercel |
 
@@ -35,9 +35,9 @@ npm install
 # Link to a Vercel project (creates one if needed)
 vercel link
 
-# Create a KV store in Vercel dashboard:
-# Dashboard → Storage → Create → KV → connect to your project
-# This auto-populates KV_REST_API_URL and KV_REST_API_TOKEN
+# Create a Blob store in Vercel dashboard:
+# Dashboard → Storage → Create Database → Blob → connect to your project
+# This auto-populates BLOB_READ_WRITE_TOKEN
 
 # Pull env vars for local dev
 vercel env pull .env.local
