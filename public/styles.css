@@ -1,0 +1,1057 @@
+/* =========================================================
+   RECKON — styles.css
+   Mobile-first, CSS custom properties, dark + color-blind modes
+   ========================================================= */
+
+/* ── Reset & base ─────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── CSS Custom Properties (light mode) ──────────────── */
+:root {
+  /* Brand colors */
+  --color-green:      #6aaa64;
+  --color-yellow:     #c9b458;
+  --color-gray:       #787c7e;
+  --color-blue-cb:    #4a90d9;
+  --color-orange-cb:  #e8861a;
+
+  /* Surface / text */
+  --bg:               #ffffff;
+  --bg-secondary:     #f9f9f9;
+  --surface:          #ffffff;
+  --border:           #d3d6da;
+  --text:             #1a1a1b;
+  --text-muted:       #787c7e;
+  --text-on-color:    #ffffff;
+
+  /* Tile */
+  --tile-empty-bg:    transparent;
+  --tile-filled-bg:   #d3d6da;
+  --tile-border:      #d3d6da;
+  --tile-border-active: #878a8c;
+  --tile-text:        #1a1a1b;
+  --tile-filled-text: #1a1a1b;
+
+  /* Pool tile */
+  --pool-tile-bg:     #ffffff;
+  --pool-tile-border: #878a8c;
+  --pool-tile-text:   #1a1a1b;
+  --pool-tile-placed-bg:   #e8e8e8;
+  --pool-tile-placed-text: #aaaaaa;
+
+  /* Header */
+  --header-border:    #d3d6da;
+
+  /* Submit button */
+  --submit-bg:        #6aaa64;
+  --submit-text:      #ffffff;
+  --submit-disabled:  #d3d6da;
+  --submit-disabled-text: #878a8c;
+
+  /* Modal */
+  --modal-overlay:    rgba(0, 0, 0, 0.5);
+  --modal-bg:         #ffffff;
+  --modal-border:     #d3d6da;
+
+  /* Toast */
+  --toast-bg:         #1a1a1b;
+  --toast-text:       #ffffff;
+
+  /* Toggle */
+  --toggle-off:       #787c7e;
+  --toggle-on:        #6aaa64;
+
+  /* Theme color for <meta> */
+  --theme-color:      #ffffff;
+
+  /* Animation */
+  --flip-duration:    250ms;
+  --stagger:          100ms;
+}
+
+/* ── Dark mode ───────────────────────────────────────── */
+html.dark {
+  --bg:               #121213;
+  --bg-secondary:     #1a1a1b;
+  --surface:          #121213;
+  --border:           #3a3a3c;
+  --text:             #ffffff;
+  --text-muted:       #818384;
+  --text-on-color:    #ffffff;
+
+  --tile-empty-bg:    transparent;
+  --tile-filled-bg:   #4a4a4c;
+  --tile-border:      #3a3a3c;
+  --tile-border-active: #565758;
+  --tile-text:        #ffffff;
+  --tile-filled-text: #ffffff;
+
+  --pool-tile-bg:     #272729;
+  --pool-tile-border: #565758;
+  --pool-tile-text:   #ffffff;
+  --pool-tile-placed-bg:   #1a1a1b;
+  --pool-tile-placed-text: #555557;
+
+  --header-border:    #3a3a3c;
+
+  --submit-bg:        #538d4e;
+  --submit-disabled:  #3a3a3c;
+  --submit-disabled-text: #565758;
+
+  --modal-overlay:    rgba(0, 0, 0, 0.7);
+  --modal-bg:         #1a1a1b;
+  --modal-border:     #3a3a3c;
+
+  --toast-bg:         #ffffff;
+  --toast-text:       #1a1a1b;
+
+  --toggle-off:       #565758;
+  --toggle-on:        #538d4e;
+}
+
+/* ── Color-blind overrides ───────────────────────────── */
+/* .color-blind swaps green→blue and yellow→orange in tiles  */
+html.color-blind {
+  --color-green:  #4a90d9;
+  --color-yellow: #e8861a;
+}
+
+/* ── Global styles ───────────────────────────────────── */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Utility ─────────────────────────────────────────── */
+.hidden {
+  display: none !important;
+}
+
+.visible {
+  display: block;
+}
+
+/* ── App shell ───────────────────────────────────────── */
+#app {
+  width: 100%;
+  max-width: 500px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 56px;
+  border-bottom: 1px solid var(--header-border);
+  flex-shrink: 0;
+}
+
+.header-left {
+  flex: 1;
+}
+
+header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  flex: 0;
+  white-space: nowrap;
+}
+
+.header-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+#streak-btn,
+#settings-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1.1rem;
+  padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  gap: 2px;
+}
+
+#streak-btn:hover,
+#settings-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+#streak-count {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ── Main / game area ────────────────────────────────── */
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px 24px;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ── Status messages (loading/error) ─────────────────── */
+.status-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.status-message p {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.status-message button {
+  padding: 10px 28px;
+  background: var(--submit-bg);
+  color: var(--submit-text);
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 44px;
+  letter-spacing: 0.05em;
+}
+
+/* ── Game UI ─────────────────────────────────────────── */
+#game-ui {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── Puzzle info (Start → Target) ────────────────────── */
+#puzzle-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+}
+
+.number-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.number-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.number-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+
+.target-block .number-value {
+  color: var(--color-green);
+}
+
+.arrow {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  margin-top: 14px;
+}
+
+/* ── Board ───────────────────────────────────────────── */
+#board {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Active row highlight — subtle left accent */
+.board-row.current .tile.empty {
+  border-color: var(--tile-border-active);
+}
+
+.board-row .tiles {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.row-result {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Tiles ───────────────────────────────────────────── */
+.tile {
+  position: relative;
+  flex: 1;
+  aspect-ratio: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.75rem, 3.5vw, 1rem);
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: default;
+  user-select: none;
+  transform-style: preserve-3d;
+  transition: transform var(--flip-duration) ease;
+  border: 2px solid var(--tile-border);
+  background: var(--tile-empty-bg);
+  color: var(--tile-text);
+}
+
+.tile.empty {
+  border: 2px solid var(--tile-border);
+  background: var(--tile-empty-bg);
+}
+
+.tile.filled {
+  border: 2px solid var(--tile-border-active);
+  background: var(--tile-filled-bg);
+  color: var(--tile-filled-text);
+  cursor: pointer;
+}
+
+.tile.filled:hover {
+  filter: brightness(0.95);
+}
+
+/* Color tiles (post-submit feedback) */
+.tile.green {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--text-on-color);
+}
+
+.tile.yellow {
+  background: var(--color-yellow);
+  border-color: var(--color-yellow);
+  color: var(--text-on-color);
+}
+
+.tile.gray {
+  background: var(--color-gray);
+  border-color: var(--color-gray);
+  color: var(--text-on-color);
+}
+
+/* Color-blind variants: same bg variable but explicit class for specificity */
+.tile.blue-cb {
+  background: var(--color-blue-cb);
+  border-color: var(--color-blue-cb);
+  color: var(--text-on-color);
+}
+
+.tile.orange-cb {
+  background: var(--color-orange-cb);
+  border-color: var(--color-orange-cb);
+  color: var(--text-on-color);
+}
+
+/* CB icon spans: hidden by default, shown in color-blind mode */
+.cb-icon {
+  display: none;
+  font-size: 0.65em;
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  line-height: 1;
+}
+
+html.color-blind .tile.green .cb-icon,
+html.color-blind .tile.yellow .cb-icon,
+html.color-blind .tile.gray .cb-icon,
+html.color-blind .tile.blue-cb .cb-icon,
+html.color-blind .tile.orange-cb .cb-icon {
+  display: block;
+}
+
+/* Flip animation — JS-driven via .flipping class */
+.tile.flipping {
+  transform: rotateY(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+  .tile.flipping {
+    transform: none;
+  }
+}
+
+/* ── Solution row (shown on loss) ────────────────────── */
+.solution-row {
+  margin-top: 4px;
+}
+
+.solution-row .tiles .tile {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--text-on-color);
+}
+
+/* In color-blind mode, solution row uses blue */
+html.color-blind .solution-row .tiles .tile {
+  background: var(--color-blue-cb);
+  border-color: var(--color-blue-cb);
+}
+
+.solution-row .row-result {
+  color: var(--text);
+}
+
+/* ── Pool section ────────────────────────────────────── */
+#pool-section {
+  width: 100%;
+}
+
+.pool-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.pool-hint {
+  font-weight: 400;
+  font-size: 0.68rem;
+}
+
+#pool-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Pool tiles ──────────────────────────────────────── */
+.pool-tile {
+  position: relative;
+  width: calc((100% - 48px) / 7);
+  min-width: 44px;
+  aspect-ratio: 1;
+  background: var(--pool-tile-bg);
+  border: 2px solid var(--pool-tile-border);
+  border-radius: 6px;
+  font-size: clamp(0.75rem, 3.5vw, 1rem);
+  font-weight: 700;
+  color: var(--pool-tile-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  user-select: none;
+}
+
+.pool-tile:hover:not(:disabled) {
+  filter: brightness(0.93);
+}
+
+.pool-tile:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.pool-tile.placed {
+  background: var(--pool-tile-placed-bg);
+  color: var(--pool-tile-placed-text);
+  border-color: var(--pool-tile-placed-bg);
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* Keyboard hint label on pool tile */
+.pool-tile .key-hint {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* ── Submit button ───────────────────────────────────── */
+#submit-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 14px 0;
+  background: var(--submit-bg);
+  color: var(--submit-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  min-height: 44px;
+}
+
+#submit-btn:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+#submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+#submit-btn:disabled {
+  background: var(--submit-disabled);
+  color: var(--submit-disabled-text);
+  cursor: default;
+}
+
+/* ── Toast ───────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 900;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  max-width: 90vw;
+  text-align: center;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Confetti canvas ─────────────────────────────────── */
+#confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+}
+
+/* ── Modals ──────────────────────────────────────────── */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 800;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.modal-content {
+  background: var(--modal-bg);
+  border: 1px solid var(--modal-border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 460px;
+  position: relative;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.modal-close:hover {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
+.modal-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 20px;
+  padding-right: 24px;
+}
+
+.modal-content h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* ── Onboarding modal ────────────────────────────────── */
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.onboarding-step {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.onboarding-step p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.onboarding-example {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.ex-start,
+.ex-target {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.ex-target {
+  color: var(--color-green);
+}
+
+.onboarding-pool-demo,
+.onboarding-row-demo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.demo-tile {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--tile-border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--tile-text);
+}
+
+.demo-tile.filled {
+  background: var(--tile-filled-bg);
+  border-color: var(--tile-border-active);
+}
+
+.demo-tile.green {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: #fff;
+}
+
+.demo-tile.yellow {
+  background: var(--color-yellow);
+  border-color: var(--color-yellow);
+  color: #fff;
+}
+
+.demo-tile.gray {
+  background: var(--color-gray);
+  border-color: var(--color-gray);
+  color: #fff;
+}
+
+.feedback-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+  padding: 0 16px;
+}
+
+.feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.hint-text {
+  font-size: 0.82rem !important;
+  color: var(--text-muted) !important;
+  text-align: center;
+}
+
+/* ── Stats modal ─────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.stat-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Guess distribution ──────────────────────────────── */
+#guess-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.dist-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dist-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.dist-bar-wrap {
+  flex: 1;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  height: 22px;
+  overflow: hidden;
+}
+
+.dist-bar {
+  height: 100%;
+  background: var(--color-gray);
+  border-radius: 3px;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  transition: width 0.4s ease;
+}
+
+.dist-bar.highlight {
+  background: var(--color-green);
+}
+
+.dist-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+/* ── Settings modal ──────────────────────────────────── */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-row > div {
+  flex: 1;
+}
+
+.setting-row strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.setting-row p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.link-row {
+  justify-content: flex-start;
+}
+
+.link-row a {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link-row a:hover {
+  text-decoration: underline;
+}
+
+/* ── Toggle switch ───────────────────────────────────── */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--toggle-off);
+  border-radius: 28px;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  top: 4px;
+  left: 4px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.toggle input:checked + .toggle-slider {
+  background: var(--toggle-on);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ── End modal ───────────────────────────────────────── */
+#end-modal .modal-content {
+  text-align: center;
+}
+
+#end-title {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+#end-message {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.end-streak {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.countdown {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Primary button (shared) ─────────────────────────── */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--submit-bg);
+  color: var(--submit-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-align: center;
+  transition: filter 0.15s;
+  min-height: 44px;
+}
+
+.btn-primary:hover {
+  filter: brightness(0.92);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* ── Responsive tweaks ───────────────────────────────── */
+@media (max-width: 360px) {
+  header h1 {
+    font-size: 1.4rem;
+  }
+
+  .number-value {
+    font-size: 1.8rem;
+  }
+
+  .pool-tile {
+    min-width: 40px;
+  }
+
+  .tile {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+@media (min-width: 500px) {
+  main {
+    padding: 20px 16px 32px;
+  }
+
+  #board {
+    gap: 8px;
+  }
+
+  #pool-tiles {
+    gap: 10px;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .pool-tile,
+  .dist-bar,
+  .toggle-slider,
+  .toggle-slider::before,
+  #toast {
+    transition: none !important;
+  }
+
+  .tile.flipping {
+    transform: none !important;
+  }
+}

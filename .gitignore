@@ -1,36 +1,30 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
-/.pnp
-.pnp.js
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
+# local env files (contain KV credentials and CRON_SECRET — never commit)
 .env*.local
 .env
 
 # vercel
 .vercel
 
-# typescript
+# dev scripts that print puzzle contents (never commit per §4.7)
+scripts/dev-*.js
+scripts/inspect-*.js
+
+# macOS
+.DS_Store
+*.pem
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# build artifacts (not used — no build step — but just in case)
+/build
+/out
+/.next/
+/coverage
 *.tsbuildinfo
 next-env.d.ts

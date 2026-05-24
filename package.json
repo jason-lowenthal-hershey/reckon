@@ -1,0 +1,15 @@
+{
+  "name": "reckon",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "bootstrap": "node scripts/bootstrap.js"
+  },
+  "dependencies": {
+    "@vercel/kv": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

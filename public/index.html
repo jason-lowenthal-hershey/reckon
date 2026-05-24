@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reckon</title>
+  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121213" media="(prefers-color-scheme: dark)">
+</head>
+<body>
+  <!-- confetti canvas - fixed, pointer-events:none, hidden by default -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Toast notification -->
+  <div id="toast" role="alert" aria-live="polite"></div>
+
+  <div id="app">
+    <header>
+      <div class="header-left"></div>
+      <h1>RECKON</h1>
+      <div class="header-right">
+        <button id="streak-btn" aria-label="View stats">🔥 <span id="streak-count">0</span></button>
+        <button id="settings-btn" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Loading/error states (hidden by default) -->
+      <div id="puzzle-preparing" class="status-message hidden">
+        <p>Today's puzzle is being prepared...</p>
+        <button id="retry-btn">Retry</button>
+      </div>
+      <div id="connection-error" class="status-message hidden">
+        <p>Connection error. Check your internet and try again.</p>
+        <button id="retry-btn-2">Retry</button>
+      </div>
+
+      <!-- Game UI (hidden until puzzle loads) -->
+      <div id="game-ui" class="hidden">
+        <div id="puzzle-info">
+          <div class="number-block">
+            <span class="number-label">Start</span>
+            <span id="start-number" class="number-value">—</span>
+          </div>
+          <span class="arrow">→</span>
+          <div class="number-block target-block">
+            <span class="number-label">Target</span>
+            <span id="target-number" class="number-value">—</span>
+          </div>
+        </div>
+
+        <div id="board" role="grid" aria-label="Guess board"></div>
+
+        <div id="pool-section">
+          <div class="pool-header">POOL <span class="pool-hint">tap to place</span></div>
+          <div id="pool-tiles" role="group" aria-label="Available operations"></div>
+        </div>
+
+        <button id="submit-btn" disabled aria-label="Submit guess">SUBMIT</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Onboarding Modal -->
+  <div id="onboarding-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="onboarding-title">How to Play</h2>
+
+      <div class="onboarding-steps">
+        <div class="onboarding-step">
+          <h3>The Goal</h3>
+          <p>Apply <strong>5 operations</strong> in order to transform the <strong>Start</strong> number into the <strong>Target</strong> number.</p>
+          <div class="onboarding-example">
+            <span class="ex-start">10</span>
+            <span class="arrow">→</span>
+            <span class="ex-target">73</span>
+          </div>
+        </div>
+
+        <div class="onboarding-step">
+          <h3>Build Your Guess</h3>
+          <p>Tap tiles from the pool to fill 5 slots. Order matters!</p>
+          <div class="onboarding-pool-demo">
+            <div class="demo-tile">×2</div>
+            <div class="demo-tile">+3</div>
+            <div class="demo-tile">×3</div>
+            <div class="demo-tile filled">−2</div>
+            <div class="demo-tile filled">+6</div>
+            <div class="demo-tile">÷5</div>
+            <div class="demo-tile">−1</div>
+          </div>
+          <div class="onboarding-row-demo">
+            <div class="demo-tile filled">×2</div>
+            <div class="demo-tile filled">+3</div>
+            <div class="demo-tile filled">×3</div>
+            <div class="demo-tile filled">−2</div>
+            <div class="demo-tile filled">+6</div>
+          </div>
+        </div>
+
+        <div class="onboarding-step">
+          <h3>Read the Feedback</h3>
+          <div class="feedback-examples">
+            <div class="feedback-row">
+              <div class="demo-tile green">×2</div>
+              <span>Correct position ✓</span>
+            </div>
+            <div class="feedback-row">
+              <div class="demo-tile yellow">+3</div>
+              <span>In solution, wrong spot</span>
+            </div>
+            <div class="feedback-row">
+              <div class="demo-tile gray">÷5</div>
+              <span>Not in solution</span>
+            </div>
+          </div>
+          <p class="hint-text">You have 6 guesses. You win when your operations hit the target!</p>
+        </div>
+      </div>
+
+      <button id="start-playing-btn" class="btn-primary">Let's Play!</button>
+    </div>
+  </div>
+
+  <!-- Stats Modal -->
+  <div id="stats-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="stats-title">Statistics</h2>
+      <div class="stats-grid">
+        <div class="stat-block">
+          <span class="stat-number" id="stat-played">0</span>
+          <span class="stat-label">Played</span>
+        </div>
+        <div class="stat-block">
+          <span class="stat-number" id="stat-total-wins">0</span>
+          <span class="stat-label">Won</span>
+        </div>
+        <div class="stat-block">
+          <span class="stat-number" id="stat-current-streak">0</span>
+          <span class="stat-label">Streak</span>
+        </div>
+        <div class="stat-block">
+          <span class="stat-number" id="stat-best-streak">0</span>
+          <span class="stat-label">Best</span>
+        </div>
+      </div>
+      <h3>Guess Distribution</h3>
+      <div id="guess-distribution"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="settings-title">Settings</h2>
+      <div class="settings-list">
+        <div class="setting-row">
+          <div>
+            <strong>Color Blind Mode</strong>
+            <p>Uses blue/orange with symbols instead of green/yellow</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cb-toggle" role="switch" aria-label="Color blind mode">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <strong>Dark Mode</strong>
+            <p>Switch to dark theme</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="dm-toggle" role="switch" aria-label="Dark mode">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row link-row">
+          <a href="#" id="how-to-play-link">How to Play</a>
+        </div>
+        <div class="setting-row link-row">
+          <a href="https://github.com" target="_blank" rel="noopener" id="source-link">Source Code ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- End of Game Modal -->
+  <div id="end-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="end-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="end-title">Great!</h2>
+      <p id="end-message"></p>
+      <p id="end-streak" class="end-streak"></p>
+      <p id="countdown" class="countdown" aria-live="polite"></p>
+      <button id="share-btn" class="btn-primary">Share 📋</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
