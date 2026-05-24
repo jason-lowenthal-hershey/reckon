@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vercel dev",
-    "bootstrap": "node scripts/bootstrap.js"
+    "bootstrap": "node --env-file=.env.local scripts/bootstrap.js"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.0"

@@ -35,7 +35,9 @@ module.exports = async function handler(req, res) {
     const { blobs } = await list({ prefix: `puzzles/${today}`, limit: 1 });
     if (blobs.length > 0) {
       // Fetch just enough to get the puzzleNumber — don't log puzzle contents
-      const existingRes = await fetch(blobs[0].url);
+      const existingRes = await fetch(blobs[0].url, {
+        headers: { authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+      });
       const existing = await existingRes.json();
       console.log(`[generate] Puzzle already exists for ${today}`);
       return res.status(200).json({
