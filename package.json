@@ -3,12 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "bootstrap": "node --env-file=.env.local scripts/bootstrap.js"
+    "bootstrap": "node --env-file=.env.local scripts/bootstrap.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.0"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0",
+    "globals": "^17.6.0",
+    "jest": "^30.4.2"
   }
 }

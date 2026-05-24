@@ -230,7 +230,7 @@ async function loadPuzzle() {
     } catch {
       // Storage full — non-fatal
     }
-  } catch (err) {
+  } catch {
     // Network error fallback
     try {
       const stale = JSON.parse(localStorage.getItem(STORAGE_PUZZLE) || 'null');
@@ -253,10 +253,6 @@ function showEl(id) {
   if (el) el.classList.remove('hidden');
 }
 
-function hideEl(id) {
-  const el = document.getElementById(id);
-  if (el) el.classList.add('hidden');
-}
 
 function showToast(msg, durationMs = 2000) {
   const toast = document.getElementById('toast');
@@ -524,7 +520,7 @@ function updateSubmitBtn() {
 
 // ── Interaction handlers ─────────────────────────────────────────────────────
 
-function onPoolTileClick(op, poolIndex) {
+function onPoolTileClick(op) {
   if (isAnimating) return;
   if (gameState.today.status !== 'in_progress') return;
   if (currentGuess.length >= OPS_PER_GUESS) return;
@@ -1052,7 +1048,7 @@ async function init() {
   doDailyReset();
 
   // Apply theme: use saved pref, or fall back to system
-  if (!gameState.settings.hasOwnProperty('darkMode') ||
+  if (!Object.hasOwn(gameState.settings, 'darkMode') ||
       gameState.settings.darkMode === false) {
     // Check if user had ever explicitly toggled dark mode; if not, check system
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1063,7 +1059,7 @@ async function init() {
         const raw = localStorage.getItem(STORAGE_STATE);
         if (!raw) return false;
         const parsed = JSON.parse(raw);
-        return parsed && parsed.settings && parsed.settings.hasOwnProperty('darkMode');
+        return parsed && parsed.settings && Object.hasOwn(parsed.settings, 'darkMode');
       } catch { return false; }
     })();
     if (!hasSavedPref) {
