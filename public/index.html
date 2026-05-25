@@ -17,11 +17,11 @@
 
   <div id="app">
     <header>
-      <div class="header-left"></div>
+      <div class="header-left"><button id="packs-btn" aria-label="Puzzle packs"><img src="/icons/packs.svg" class="icon" alt="" aria-hidden="true"> Packs</button></div>
       <h1>RECKON</h1>
       <div class="header-right">
-        <button id="streak-btn" aria-label="View stats">🔥 <span id="streak-count">0</span></button>
-        <button id="settings-btn" aria-label="Settings">⚙</button>
+        <button id="streak-btn" aria-label="View stats"><img src="/icons/flame.svg" class="icon" alt="" aria-hidden="true"> <span id="streak-count">0</span></button>
+        <button id="settings-btn" aria-label="Settings"><img src="/icons/settings.svg" class="icon" alt="" aria-hidden="true"></button>
       </div>
     </header>
 
@@ -38,6 +38,12 @@
 
       <!-- Game UI (hidden until puzzle loads) -->
       <div id="game-ui" class="hidden">
+        <!-- Pack mode banner — hidden during daily puzzle -->
+        <div id="pack-banner" class="hidden">
+          <span id="pack-banner-text"></span>
+          <button id="pack-back-link">← Daily</button>
+        </div>
+
         <div id="puzzle-info">
           <div class="number-block">
             <span class="number-label">Start</span>
@@ -197,6 +203,84 @@
       <p id="end-streak" class="end-streak"></p>
       <p id="countdown" class="countdown" aria-live="polite"></p>
       <button id="share-btn" class="btn-primary">Share 📋</button>
+    </div>
+  </div>
+
+  <!-- Pack Browser Modal -->
+  <div id="packs-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="packs-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="packs-title">Puzzle Packs</h2>
+      <div id="packs-list">
+        <p class="packs-loading">Loading packs…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Entry Modal -->
+  <div id="key-entry-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="key-entry-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="key-entry-title">Enter License Key</h2>
+      <p class="key-entry-hint">Paste the key from your purchase confirmation email.</p>
+      <input type="text" id="key-input" class="key-input" placeholder="RCKN-XXXX-XXXX-XXXX"
+             autocomplete="off" spellcheck="false" autocapitalize="characters" maxlength="19">
+      <p id="key-error" class="key-error hidden"></p>
+      <button id="key-submit-btn" class="btn-primary">Unlock Pack</button>
+    </div>
+  </div>
+
+  <!-- Purchase Success Modal -->
+  <div id="purchase-success-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="purchase-success-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="purchase-success-title">Pack Unlocked! 🎉</h2>
+      <p>Your pack has been unlocked. Keep your license key in case you need it on a new device:</p>
+      <div class="key-display">
+        <code id="purchase-key-code"></code>
+        <button id="copy-key-btn">Copy</button>
+      </div>
+      <p class="hint-text">A copy was also sent to your email.</p>
+      <button id="go-play-pack-btn" class="btn-primary">Play Now</button>
+    </div>
+  </div>
+
+  <!-- Pack End Modal -->
+  <div id="pack-end-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pack-end-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="pack-end-title"></h2>
+      <p id="pack-end-msg"></p>
+      <p id="pack-end-solution" class="hidden"></p>
+      <div class="pack-end-actions">
+        <button id="pack-next-btn" class="btn-primary">Next Puzzle →</button>
+        <button id="pack-back-btn" class="btn-secondary">← Back to Daily</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Archive Browser Modal -->
+  <div id="archive-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="archive-title">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="archive-title">Daily Archive</h2>
+      <p class="archive-hint">Select any past date to play that puzzle.</p>
+      <div id="archive-list" class="archive-list">
+        <p class="packs-loading">Loading dates…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Modal (Stripe Payment Element — no redirect) -->
+  <div id="checkout-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+    <div class="modal-content checkout-modal-content">
+      <button class="modal-close" aria-label="Close">✕</button>
+      <h2 id="checkout-title">Unlock Pack</h2>
+      <p id="checkout-pack-desc" class="checkout-pack-desc"></p>
+      <div id="payment-element"></div>
+      <p id="payment-error" class="payment-error hidden"></p>
+      <button id="pay-btn" class="btn-primary checkout-pay-btn">Pay $1.00</button>
+      <p class="checkout-footer">Secured by <a href="https://stripe.com" target="_blank" rel="noopener noreferrer">Stripe</a> — your card details never touch our servers.</p>
     </div>
   </div>
 

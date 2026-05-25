@@ -10,7 +10,7 @@ npm run lint                          # ESLint — api/, lib/, scripts/, tests/,
 npm run lint:fix                      # auto-fix safe issues
 
 # Run tests (required before every commit/push)
-npm test                              # Jest — 70 tests across 3 suites
+npm test                              # Jest — all suites
 npm run test:coverage                 # same, with coverage report
 
 # Local dev server (must use CLI directly — no npm run dev)
@@ -31,6 +31,10 @@ vercel env pull .env.local
 
 There is no lint step and no build step — `public/` is served as-is.
 
+## No Emoji Policy
+
+Never use emoji in code, UI text, toast messages, or comments. Where a visual indicator is needed, use a simple clean SVG icon file in `public/icons/` and reference it with `<img src="/icons/name.svg" class="icon" alt="" aria-hidden="true">`. Existing icons: `flame.svg`, `packs.svg`, `settings.svg`, `practice.svg`, `loyal.svg`, `hard.svg`, `expert.svg`, `archive.svg`, `lock.svg`.
+
 ## Testing Requirements
 
 **All new code must pass lint (`npm run lint`) and be fully unit tested (`npm test`) before being committed.** Tests live in `tests/` and run with Jest (CommonJS, no transform). CI enforces passing tests on every push via `.github/workflows/ci.yml`.
@@ -40,6 +44,10 @@ There is no lint step and no build step — `public/` is served as-is.
 | `tests/generator.test.js` | All exported functions in `lib/generator.js` — 40+ assertions verifying pool size, uniqueness, solution validity, and algorithm invariants |
 | `tests/api-today.test.js` | `api/today.js` handler — auth headers, CORS, 503/200 paths, public blob read (no auth header) |
 | `tests/api-generate.test.js` | `api/generate.js` handler — auth, idempotency, generation, blob write options, all error paths |
+| `tests/api-config.test.js` | `api/config.js` handler — GET, CORS, 405, env set/unset |
+| `tests/api-payment-intent.test.js` | `api/payment-intent.js` handler — 503/400/405/200/500 paths |
+| `tests/api-fulfill.test.js` | `api/fulfill.js` handler — 503/400/402/405/200, idempotency, blob write, Stripe errors |
+| `tests/utils.test.js` | `lib/utils.js` — `utcDateString`, `parseJsonBody` (stream, pre-parsed object, string, invalid JSON) |
 
 **Linting:** ESLint v9 flat config (`eslint.config.js`). Rules: `@eslint/js` recommended. Three environments: `api/`, `lib/`, `scripts/`, `tests/` use Node globals; `tests/` also gets Jest globals; `public/` uses browser globals. Use `Object.hasOwn(obj, key)` instead of `obj.hasOwnProperty(key)`. Unused catch bindings use bare `catch {}` (no `(err)`).
 
@@ -49,6 +57,7 @@ There is no lint step and no build step — `public/` is served as-is.
 - API req/res: plain stub objects with `status()`, `json()`, `setHeader()`, `end()` chainable methods; check `res._status` and `res._body`
 - `global.fetch`: assign `jest.fn()` in `beforeEach`; override per-test with `.mockResolvedValue({ json: jest.fn().mockResolvedValue(data) })`
 - `lib/generator` (in API tests): `jest.mock('../lib/generator', () => ({ generatePuzzle: jest.fn() }))`
+- `stripe`: `jest.mock('stripe', () => jest.fn(() => ({ paymentIntents: { create: jest.fn(), retrieve: jest.fn() } })))`
 
 Set `jest.setTimeout(15000)` in `tests/generator.test.js` — `generatePuzzle` runs the full P(10,5) uniqueness check and needs the headroom.
 
@@ -60,16 +69,23 @@ Three project-specific agents live in `.claude/agents/`. Create them with the co
 ```
 ---
 name: frontend-dev
-description: Use for any work touching public/ — app.js, styles.css, index.html. Knows the Reckon SPA patterns, pool tile system, animation model, localStorage state, and Vercel static serving.
+description: Use for any work touching public/ — app.js, styles.css, index.html. Knows the Reckon SPA patterns, pool tile system, animation model, localStorage state, pack mode, and Vercel static serving.
 ---
 
 You are a frontend specialist for the Reckon daily math puzzle app. No framework, no build step — plain JS/HTML/CSS in `public/`.
 
+No emoji anywhere in the codebase. Use SVG icons from `public/icons/` instead.
+
 Core patterns:
 
-Operations stored as ASCII (+, -, *, /) and displayed via OP_DISPLAY as Unicode (+, −, ×, ÷). Pool tiles use split .op-sym (operator) + .op-num (operand) spans. The data-op attribute drives CSS family accent colours: blue for +/-, amber for */÷.
+Operations stored as ASCII (+, -, *, /) and displayed via OP_DISPLAY as Unicode (+, −, ×, ÷). Pool tiles use split .op-sym (operator) + .op-num (operand) spans. The data-op attribute drives CSS family accent colours: blue for +/-, amber for */÷. The .op-sym color is set via CSS attribute selectors ([data-op="+"] etc.) and is overridden to inherit when the tile has a feedback state class.
 
-State: reckon:state (guesses/streak/settings) and reckon:puzzle (today's puzzle cached by UTC date) in localStorage.
+State localStorage keys:
+- reckon:state — daily guesses, streak, history, settings
+- reckon:puzzle — today's fetched puzzle (keyed by UTC date to detect day rollover)
+- reckon:packs — pack game state, progress per pack, unlocked keys
+
+Pack mode: enterPackMode(packId, puzzleIndex) temporarily swaps gameState.today with a reference into packState.progress[packId].games[puzzleIndex]. All existing render/submit functions work unchanged. exitPackMode() restores the daily puzzle from localStorage. saveState() is pack-aware — it calls savePackState() when packMode.active is true.
 
 Keyboard: 1–9 → pool[0–8], 0 → pool[9], Backspace removes, Enter submits.
 
@@ -77,7 +93,9 @@ Animations: tile flip uses Promise.all with per-tile staggered delays — never 
 
 Win condition: Math.abs(result - target) < 1e-9, not all-green feedback.
 
-CSS: feedback colours (--color-green/yellow/gray) and pool family colours (--pool-add-*, --pool-mul-*) are CSS variables with dark-mode overrides in [data-theme="dark"]. Pool layout is a 5-column CSS grid (#pool-tiles), not flexbox.
+CSS: feedback colours (--color-green/yellow/gray) and pool family colours (--pool-add-*, --pool-mul-*) are CSS variables with dark-mode overrides in html.dark. Pool layout is a 5-column CSS grid (#pool-tiles), not flexbox. SVG icons in <img> tags use `filter: invert(1)` in html.dark to appear white on dark backgrounds.
+
+Embedded Stripe checkout: startCheckout(packId) fetches publishable key from /api/config, creates a PaymentIntent via /api/payment-intent, mounts Stripe Payment Element in #checkout-modal, calls stripe.confirmPayment({ redirect: 'if_required' }) on submit, then calls /api/fulfill with paymentIntentId to get the license key.
 
 Vercel static: public/ is served as-is; API calls go to /api/today (same-origin). app.js receives the full puzzle including solution and caches it in localStorage — this is by design (SPEC.md §4.7) for the loss-reveal feature.
 
@@ -88,10 +106,10 @@ All new frontend code must have corresponding tests in tests/.
 ```
 ---
 name: backend-dev
-description: Use for any work in api/, lib/generator.js, vercel.json, or scripts/. Knows the puzzle generation algorithm, Vercel Blob storage, cron setup, and puzzle privacy rules.
+description: Use for any work in api/, lib/generator.js, vercel.json, or scripts/. Knows the puzzle generation algorithm, Vercel Blob storage, cron setup, pack system, Stripe payment flow, and puzzle privacy rules.
 ---
 
-You are a backend specialist for the Reckon daily math puzzle app. Stack: Vercel Serverless Functions + Vercel Blob + Vercel Cron.
+You are a backend specialist for the Reckon daily math puzzle app. Stack: Vercel Serverless Functions + Vercel Blob + Vercel Cron + Stripe.
 
 Puzzle generation (lib/generator.js):
 
@@ -101,13 +119,23 @@ generateDecoys(solution, start, target) adds decoys incrementally — each candi
 
 permutations() is a plain recursive array function (not a generator function) — required for Vercel's serverless sandbox.
 
-Storage: blobs at puzzles/YYYY-MM-DD.json, access: 'public', addRandomSuffix: false, allowOverwrite: true. Read via list({ prefix }) + fetch(blob.url) with no auth header (public store).
+Storage: blobs at puzzles/YYYY-MM-DD.json, access: 'public', addRandomSuffix: false, allowOverwrite: true. Read via list({ prefix }) + fetch(blob.url) with no auth header (public store). Pack puzzles at packs/{packId}/puzzles.json. Licenses at licenses/{KEY}.json. Stripe fulfillment idempotency at sessions/pi_{id}.json.
 
 Auth: /api/generate requires Authorization: Bearer ${CRON_SECRET}. Cron fires at 00:05 UTC via vercel.json.
 
 CRITICAL — Puzzle privacy: NEVER log start, target, pool, or solution. Only log { date, puzzleNumber, message }. See SPEC.md §4.7.
 
 LAUNCH_DATE must be kept in sync between api/generate.js and public/app.js.
+
+Pack payment flow:
+1. POST /api/payment-intent { packId } → creates Stripe PaymentIntent, returns { clientSecret }
+2. Frontend mounts Payment Element, user pays
+3. POST /api/fulfill { paymentIntentId } → verifies PI succeeded with Stripe, generates RCKN key, writes licenses/{key}.json + sessions/pi_{id}.json (idempotent), returns { key, packId }
+4. POST /api/redeem { key, packId } → validates key, marks redeemedAt, returns pack info
+
+License key format: RCKN-XXXX-XXXX-XXXX, charset ABCDEFGHJKLMNPQRSTUVWXYZ23456789 (no I, O, 0, 1 — confusable).
+
+parseJsonBody(req) in lib/utils.js handles both vercel dev (pre-parsed req.body) and production (raw stream). Always use it instead of inline stream reading.
 
 All new backend code must have corresponding tests in tests/.
 ```
@@ -116,15 +144,23 @@ All new backend code must have corresponding tests in tests/.
 ```
 ---
 name: test-engineer
-description: Use for writing or fixing tests in tests/. Knows Jest patterns, how to mock @vercel/blob and the API req/res interface, and what invariants to assert for the puzzle generator.
+description: Use for writing or fixing tests in tests/. Knows Jest patterns, how to mock @vercel/blob, stripe, and the API req/res interface, and what invariants to assert for the puzzle generator and pack payment flow.
 ---
 
 You are the test engineer for the Reckon daily math puzzle app. Test framework: Jest (CommonJS, no transform).
 
-Files: tests/generator.test.js, tests/api-today.test.js, tests/api-generate.test.js.
+Files: tests/generator.test.js, tests/api-today.test.js, tests/api-generate.test.js, tests/api-config.test.js, tests/api-payment-intent.test.js, tests/api-fulfill.test.js, tests/utils.test.js.
 
 Mocking @vercel/blob:
   jest.mock('@vercel/blob', () => ({ list: jest.fn(), put: jest.fn() }));
+
+Mocking stripe:
+  jest.mock('stripe', () => jest.fn(() => ({
+    paymentIntents: { create: jest.fn(), retrieve: jest.fn() },
+  })));
+  const Stripe = require('stripe');
+  const mockStripe = Stripe();
+  // then: mockStripe.paymentIntents.create.mockResolvedValue({...})
 
 Mocking Vercel API req/res: plain stubs with status(), json(), setHeader(), end() methods that return this. Assert on res._status and res._body.
 
@@ -140,6 +176,7 @@ Non-unique test trick: a pool of only +/- ops where every ordering gives the sam
 Set jest.setTimeout(15000) at the top of generator tests.
 
 Save and restore process.env.CRON_SECRET around api/generate tests (beforeEach sets it, afterAll restores it).
+Save and restore process.env.STRIPE_SECRET_KEY around payment-intent and fulfill tests.
 
 Run npm test before declaring any work done.
 ```
@@ -148,14 +185,40 @@ Run npm test before declaring any work done.
 
 ```
 vercel.json cron (00:05 UTC)
-  → GET /api/generate  [Bearer $CRON_SECRET]
+  → POST /api/generate  [Bearer $CRON_SECRET]
       → lib/generator.js  (crypto.randomBytes, never seeded)
           → Vercel Blob  puzzles/YYYY-MM-DD.json  (access: 'public')
-  → GET /api/today  (public)
-      → public/app.js  (caches puzzle in localStorage: reckon:puzzle)
+
+GET /api/today  (public)
+  → public/app.js  (caches puzzle in localStorage: reckon:puzzle)
+
+GET /api/config  (public)
+  → returns { stripePk } — safe to expose
+
+GET /api/packs  (public)
+  → returns { packs: [...] } from lib/packs.js
+
+GET /api/pack-puzzles?packId=X&index=N  (public)
+  → reads packs/{packId}/puzzles.json from Blob, returns puzzle at index
+
+POST /api/payment-intent  { packId }
+  → creates Stripe PaymentIntent, returns { clientSecret }
+
+POST /api/fulfill  { paymentIntentId }
+  → verifies PI with Stripe, generates RCKN key, stores in Blob (idempotent)
+  → returns { key, packId }
+
+POST /api/redeem  { key, packId }
+  → validates RCKN key in Blob, marks redeemed, returns pack info
+
+POST /api/webhook  [Stripe-Signature header]
+  → handles payment_intent.succeeded for email delivery (Resend)
+  → NOT used for key generation (that's /api/fulfill)
+
+POST /api/checkout  (legacy — kept for backwards compat, not used by current frontend)
 ```
 
-**No framework, no build.** `public/` is a vanilla JS SPA. `api/` contains two Vercel Serverless Functions. `lib/generator.js` is pure Node.js shared between API routes.
+**No framework, no build.** `public/` is a vanilla JS SPA. `api/` contains Vercel Serverless Functions. `lib/` contains shared Node.js modules.
 
 ## Puzzle Generation (`lib/generator.js`)
 
@@ -173,6 +236,9 @@ The generator is the heart of the app. Key invariants:
 - Blobs are stored at `puzzles/YYYY-MM-DD.json` with `addRandomSuffix: false`.
 - `api/today.js` reads via `list({ prefix })` + `fetch(blob.url)` (no auth header — public store).
 - `api/generate.js` writes via `put(pathname, body, { access: 'public', allowOverwrite: true })`.
+- Pack puzzles stored at `packs/{packId}/puzzles.json`.
+- License keys stored at `licenses/{KEY}.json`.
+- Stripe PI fulfillment idempotency stored at `sessions/pi_{piId}.json`.
 
 ## Strict Rule: Never Log Puzzle Contents
 
@@ -180,13 +246,18 @@ The generator is the heart of the app. Key invariants:
 
 ## Frontend State (`public/app.js`)
 
-Two `localStorage` keys:
-- `reckon:state` — guesses, streak, history, settings
+Three `localStorage` keys:
+- `reckon:state` — daily guesses, streak, history, settings
 - `reckon:puzzle` — today's fetched puzzle (keyed by UTC date to detect day rollover)
+- `reckon:packs` — pack game state, progress, unlocked keys
 
-**Operations** are stored internally as ASCII (`+`, `-`, `*`, `/`) and displayed as Unicode (`+`, `−`, `×`, `÷`) via `OP_DISPLAY`. The pool tiles split the operator and operand into `.op-sym` and `.op-num` spans, styled by `data-op` attribute for family accent colours (blue = additive, amber = multiplicative).
+**Operations** are stored internally as ASCII (`+`, `-`, `*`, `/`) and displayed as Unicode (`+`, `−`, `×`, `÷`) via `OP_DISPLAY`. The pool tiles split the operator and operand into `.op-sym` and `.op-num` spans, styled by `data-op` attribute for family accent colours (blue = additive, amber = multiplicative). The `.op-sym` color is overridden to `inherit` when the tile has a feedback state class.
 
 Keyboard shortcuts: keys `1`–`9` map to pool indices 0–8; key `0` maps to index 9.
+
+**Pack mode:** `enterPackMode(packId, puzzleIndex)` swaps `gameState.today` with a pack game object reference. All render/submit functions work unchanged. `exitPackMode()` restores the daily puzzle. `saveState()` routes to `savePackState()` when `packMode.active` is true.
+
+**Embedded Stripe checkout:** `startCheckout(packId)` → fetches `STRIPE_PUBLISHABLE_KEY` from `/api/config` → creates PaymentIntent via `/api/payment-intent` → mounts Payment Element in `#checkout-modal` → on submit calls `stripe.confirmPayment({ redirect: 'if_required' })` → calls `/api/fulfill` with `paymentIntentId` → stores key in `packState` → shows purchase success modal.
 
 ## Key Constants
 
@@ -204,8 +275,13 @@ Keyboard shortcuts: keys `1`–`9` map to pool indices 0–8; key `0` maps to in
 |---|---|---|
 | `BLOB_READ_WRITE_TOKEN` | Vercel dashboard (auto via Blob store integration) | Blob read/write |
 | `CRON_SECRET` | Vercel dashboard → Settings → Env Vars | Protects `/api/generate` |
+| `STRIPE_SECRET_KEY` | Vercel dashboard → Settings → Env Vars | Stripe API — server-side only |
+| `STRIPE_PUBLISHABLE_KEY` | Vercel dashboard → Settings → Env Vars | Stripe — returned by `/api/config`, safe to expose |
+| `STRIPE_WEBHOOK_SECRET` | Vercel dashboard → Settings → Env Vars | Stripe webhook signature verification |
+| `RESEND_API_KEY` | Vercel dashboard → Settings → Env Vars | Email delivery (purchase confirmation) |
+| `RESEND_FROM_EMAIL` | Vercel dashboard → Settings → Env Vars | From address for purchase emails |
 
-Both must be present in `.env.local` for local dev (`vercel env pull .env.local`).
+All must be present in `.env.local` for local dev (`vercel env pull .env.local`).
 
 ## Git Remote
 

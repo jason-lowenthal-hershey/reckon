@@ -163,6 +163,28 @@ body {
   display: block;
 }
 
+/* ── SVG icon utility ────────────────────────────────── */
+.icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+  flex-shrink: 0;
+}
+
+.pack-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: -2px;
+}
+
+/* Dark mode: SVGs use stroke="currentColor" which defaults to black in <img>.
+   Invert to white so icons remain readable on dark surfaces. */
+html.dark .icon,
+html.dark .pack-icon {
+  filter: invert(1);
+}
+
 /* ── App shell ───────────────────────────────────────── */
 #app {
   width: 100%;
@@ -325,13 +347,13 @@ main {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .board-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* Active row highlight — subtle left accent */
@@ -341,7 +363,7 @@ main {
 
 .board-row .tiles {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
 }
 
@@ -400,18 +422,21 @@ main {
 .tile.green {
   background: var(--color-green);
   border-color: var(--color-green);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.12);
   color: var(--text-on-color);
 }
 
 .tile.yellow {
   background: var(--color-yellow);
   border-color: var(--color-yellow);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.12);
   color: var(--text-on-color);
 }
 
 .tile.gray {
   background: var(--color-gray);
   border-color: var(--color-gray);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.12);
   color: var(--text-on-color);
 }
 
@@ -419,12 +444,14 @@ main {
 .tile.blue-cb {
   background: var(--color-blue-cb);
   border-color: var(--color-blue-cb);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.12);
   color: var(--text-on-color);
 }
 
 .tile.orange-cb {
   background: var(--color-orange-cb);
   border-color: var(--color-orange-cb);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.12);
   color: var(--text-on-color);
 }
 
@@ -591,7 +618,7 @@ html.color-blind .pool-tile.pool-feedback-y {
 
 /* Two-line op display */
 .pool-tile .op-sym {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -602,6 +629,36 @@ html.color-blind .pool-tile.pool-feedback-y {
   font-weight: 700;
   line-height: 1;
   opacity: 0.8;
+}
+
+/* Operator family colors on the symbol text — helps distinguish ÷ from + */
+.pool-tile[data-op="+"] .op-sym,
+.pool-tile[data-op="-"] .op-sym {
+  color: #4a7fc1;
+}
+
+.pool-tile[data-op="*"] .op-sym,
+.pool-tile[data-op="/"] .op-sym {
+  color: #c97c1a;
+}
+
+/* Keep symbol readable when tile has feedback color (tile bg is colored) */
+.pool-tile.pool-feedback-g .op-sym,
+.pool-tile.pool-feedback-y .op-sym,
+.pool-tile.pool-in-solution .op-sym,
+.pool-tile.pool-decoy .op-sym,
+.pool-tile.placed .op-sym {
+  color: inherit;
+}
+
+html.dark .pool-tile[data-op="+"] .op-sym,
+html.dark .pool-tile[data-op="-"] .op-sym {
+  color: #7ab4f0;
+}
+
+html.dark .pool-tile[data-op="*"] .op-sym,
+html.dark .pool-tile[data-op="/"] .op-sym {
+  color: #e8a84a;
 }
 
 /* Keyboard shortcut badge */
@@ -1122,6 +1179,344 @@ html.color-blind .pool-tile.pool-feedback-y {
   #pool-tiles {
     gap: 10px;
   }
+}
+
+/* ── Packs button ────────────────────────────────────── */
+#packs-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 8px 10px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+}
+
+#packs-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+/* ── Pack mode banner ────────────────────────────────── */
+#pack-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+#pack-banner-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+}
+
+#pack-back-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+#pack-back-link:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Pack browser ────────────────────────────────────── */
+#packs-list {
+  margin-top: 8px;
+}
+
+.packs-loading {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.pack-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.pack-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pack-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pack-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.pack-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.pack-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 90px;
+}
+
+.pack-actions .btn-primary,
+.pack-actions .btn-secondary {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.pack-lock {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 4px;
+}
+
+.pack-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* ── Secondary button ────────────────────────────────── */
+.btn-secondary {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 44px;
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* ── Key entry ───────────────────────────────────────── */
+.key-entry-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.key-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 1.1rem;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 12px;
+  display: block;
+  box-sizing: border-box;
+}
+
+.key-input:focus {
+  outline: none;
+  border-color: var(--color-green);
+}
+
+.key-error {
+  color: #e03030;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #ffeaea;
+  border-radius: 6px;
+}
+
+html.dark .key-error {
+  background: #3a1a1a;
+  color: #ff7070;
+}
+
+/* ── Purchase success ────────────────────────────────── */
+.key-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+
+.key-display code {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.key-display button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.key-display button:hover {
+  background: var(--bg);
+}
+
+/* ── Pack end modal ──────────────────────────────────── */
+.pack-end-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ── Archive browser ─────────────────────────────────── */
+.archive-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.archive-list {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.archive-date-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: 'Courier New', monospace;
+}
+
+.archive-date-btn:hover {
+  background: var(--bg);
+  border-color: var(--text-muted);
+}
+
+/* ── Checkout modal (Stripe Payment Element) ─────────── */
+.checkout-modal-content {
+  max-width: 420px;
+}
+
+.checkout-pack-desc {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+#payment-element {
+  margin-bottom: 12px;
+  /* Stripe mounts an iframe here — min-height prevents layout jump */
+  min-height: 56px;
+}
+
+.payment-error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fdecea;
+  border-radius: 6px;
+}
+
+html.dark .payment-error {
+  background: #3a1212;
+  color: #ff8080;
+}
+
+.checkout-pay-btn {
+  margin-top: 4px;
+}
+
+.checkout-footer {
+  margin-top: 14px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.checkout-footer a {
+  color: var(--text-muted);
+  text-decoration: underline;
 }
 
 /* ── Reduced motion ──────────────────────────────────── */

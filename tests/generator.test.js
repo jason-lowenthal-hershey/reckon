@@ -4,6 +4,7 @@
 jest.setTimeout(15000);
 
 const {
+  DEFAULT_CONFIG,
   randInt,
   applyOp,
   applyAll,
@@ -191,7 +192,7 @@ describe('generateSolution', () => {
 
   beforeAll(() => {
     for (let i = 0; i < 10 && result == null; i++) {
-      result = generateSolution(10);
+      result = generateSolution(10, DEFAULT_CONFIG);
     }
   });
 
@@ -210,11 +211,11 @@ describe('generateSolution', () => {
     }
   });
 
-  test('all operands are integers in [2, 9]', () => {
+  test('all operands are integers in [operandMin, operandMax]', () => {
     for (const op of result.solution) {
       expect(Number.isInteger(op.operand)).toBe(true);
-      expect(op.operand).toBeGreaterThanOrEqual(2);
-      expect(op.operand).toBeLessThanOrEqual(9);
+      expect(op.operand).toBeGreaterThanOrEqual(DEFAULT_CONFIG.operandMin);
+      expect(op.operand).toBeLessThanOrEqual(DEFAULT_CONFIG.operandMax);
     }
   });
 
@@ -228,9 +229,9 @@ describe('generateSolution', () => {
     expect(Math.abs(computed - result.target)).toBeLessThan(1e-9);
   });
 
-  test('target is in [20, 250]', () => {
-    expect(result.target).toBeGreaterThanOrEqual(20);
-    expect(result.target).toBeLessThanOrEqual(250);
+  test('target is in [targetMin, targetMax]', () => {
+    expect(result.target).toBeGreaterThanOrEqual(DEFAULT_CONFIG.targetMin);
+    expect(result.target).toBeLessThanOrEqual(DEFAULT_CONFIG.targetMax);
   });
 
   test('has at least one multiplicative op (* or /)', () => {
@@ -256,14 +257,14 @@ describe('generateSolution', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateDecoys', () => {
-  test('returns 5 decoys that are distinct from each other and from the solution, with operands in [2,9], and that keep the pool unique', () => {
+  test('returns 5 decoys that are distinct from each other and from the solution, with operands in [operandMin, operandMax], and that keep the pool unique', () => {
     // Obtain a fresh solution to test against
     let sol = null;
-    for (let i = 0; i < 10 && sol === null; i++) sol = generateSolution(10);
+    for (let i = 0; i < 10 && sol === null; i++) sol = generateSolution(10, DEFAULT_CONFIG);
     expect(sol).not.toBeNull();
 
     const { solution, target } = sol;
-    const decoys = generateDecoys(solution, 10, target);
+    const decoys = generateDecoys(solution, 10, target, DEFAULT_CONFIG);
 
     // generateDecoys may return null if no valid 5-decoy set exists for this
     // particular solution (rare — generatePuzzle retries with a new solution
@@ -285,8 +286,8 @@ describe('generateDecoys', () => {
 
     // Operands in range
     for (const d of decoys) {
-      expect(d.operand).toBeGreaterThanOrEqual(2);
-      expect(d.operand).toBeLessThanOrEqual(9);
+      expect(d.operand).toBeGreaterThanOrEqual(DEFAULT_CONFIG.operandMin);
+      expect(d.operand).toBeLessThanOrEqual(DEFAULT_CONFIG.operandMax);
     }
 
     // Full 10-op pool preserves uniqueness
@@ -320,10 +321,10 @@ describe('generatePuzzle', () => {
     expect(puzzle.start).toBeLessThanOrEqual(20);
   });
 
-  test('target is an integer in [20, 250]', () => {
+  test('target is an integer in [targetMin, targetMax]', () => {
     expect(Number.isInteger(puzzle.target)).toBe(true);
-    expect(puzzle.target).toBeGreaterThanOrEqual(20);
-    expect(puzzle.target).toBeLessThanOrEqual(250);
+    expect(puzzle.target).toBeGreaterThanOrEqual(DEFAULT_CONFIG.targetMin);
+    expect(puzzle.target).toBeLessThanOrEqual(DEFAULT_CONFIG.targetMax);
   });
 
   test('pool has exactly 10 ops', () => {

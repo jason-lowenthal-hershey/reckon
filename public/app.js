@@ -19,6 +19,15 @@ const OP_DISPLAY = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 
 const FEEDBACK_EMOJI = { G: '🟩', Y: '🟨', W: '⬜' };
 
+// ── Pack constants ────────────────────────────────────────────────────────────
+
+const STORAGE_PACKS        = 'reckon:packs';
+const API_PACKS            = '/api/packs';
+const API_PACK_PUZZLES     = '/api/pack-puzzles';
+const API_REDEEM           = '/api/redeem';
+const API_CHECKOUT_SESSION = '/api/checkout-session';
+const API_ARCHIVE          = '/api/archive';
+
 // ── State ────────────────────────────────────────────────────────────────────
 
 let puzzle       = null;   // loaded from API / cache
@@ -26,6 +35,9 @@ let gameState    = null;   // loaded from localStorage
 let currentGuess = [];     // ops placed in the current row
 let isAnimating  = false;
 let countdownInterval = null;
+let packState   = null;   // { unlocked: {}, progress: {} } from localStorage
+let packCatalog = null;   // fetched from /api/packs
+let packMode    = null;   // null | { packId, packObj, puzzleIndex, key, gameRef }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,10 +149,43 @@ function loadState() {
 }
 
 function saveState() {
+  // In pack mode, gameState.today points at pack game state — do not overwrite daily save.
+  if (packMode) {
+    savePackState();
+    return;
+  }
   try {
     localStorage.setItem(STORAGE_STATE, JSON.stringify(gameState));
   } catch {
     // Silently fail if storage is unavailable
+  }
+}
+
+// ── Pack state persistence ────────────────────────────────────────────────────
+
+function getDefaultPackState() {
+  return { unlocked: {}, progress: {} };
+}
+
+function loadPackState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_PACKS);
+    if (!raw) return getDefaultPackState();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return getDefaultPackState();
+    parsed.unlocked = parsed.unlocked || {};
+    parsed.progress = parsed.progress || {};
+    return parsed;
+  } catch {
+    return getDefaultPackState();
+  }
+}
+
+function savePackState() {
+  try {
+    localStorage.setItem(STORAGE_PACKS, JSON.stringify(packState));
+  } catch {
+    // Silently fail
   }
 }
 
@@ -190,6 +235,24 @@ function doDailyReset() {
   }
 
   saveState();
+}
+
+/**
+ * Restore the daily puzzle from localStorage cache without hitting the API.
+ * Returns true if a valid cached puzzle was found for today.
+ */
+function restoreDailyPuzzle() {
+  try {
+    const today  = getUTCDate();
+    const cached = JSON.parse(localStorage.getItem(STORAGE_PUZZLE) || 'null');
+    if (cached && cached.date === today && cached.puzzle) {
+      puzzle = cached.puzzle;
+      return true;
+    }
+  } catch {
+    // Bad cache
+  }
+  return false;
 }
 
 // ── Puzzle loading ───────────────────────────────────────────────────────────
@@ -601,8 +664,39 @@ function evaluateCurrentGuess() {
 /**
  * Update game status and streak, persist state, re-render, and show the
  * end modal if the game is now over.
+ * In pack mode: skips streak update, saves pack state, shows pack end modal.
  */
 async function resolveGameEnd(won, lostNow) {
+  // ── Pack mode ──────────────────────────────────────────────────────────────
+  if (packMode) {
+    if (won) {
+      gameState.today.status = 'won';   // gameState.today === packMode.gameRef
+      savePackState();
+    } else if (lostNow) {
+      gameState.today.status = 'lost';
+      savePackState();
+    }
+
+    if (won || lostNow) {
+      renderBoard();
+      renderPool();
+      updateSubmitBtn();
+      isAnimating = false;
+      await sleep(500);
+      if (won) {
+        celebrateWin();
+        await sleep(1500);
+      }
+      showPackEndModal(won);
+    } else {
+      renderPool();
+      updateSubmitBtn();
+      isAnimating = false;
+    }
+    return;
+  }
+
+  // ── Daily mode ─────────────────────────────────────────────────────────────
   if (won) {
     gameState.today.status = 'won';
     updateStreak(true);
@@ -744,6 +838,11 @@ function updateStreak(won) {
     }
     streak.best        = Math.max(streak.best, streak.current);
     streak.lastWinDate = today;
+
+    // Unlock Loyal Pack on reaching a 14-day streak
+    if (streak.current === 14) {
+      unlockLoyalPack();
+    }
   } else {
     streak.current = 0;
   }
@@ -754,6 +853,707 @@ function updateStreak(won) {
 function updateStreakBadge() {
   const el = document.getElementById('streak-count');
   if (el) el.textContent = gameState.streak.current;
+}
+
+// ── Pack management ───────────────────────────────────────────────────────────
+
+/**
+ * Automatically unlock the Loyal Pack when a 14-day streak is achieved.
+ * Shows a toast notification on first unlock.
+ */
+function unlockLoyalPack() {
+  if (!packState || packState.unlocked.loyal) return;
+  packState.unlocked.loyal = { type: 'streak', unlockedAt: getUTCDate() };
+  savePackState();
+  showToast('14-day streak! Loyal Pack unlocked — tap Packs to play.', 4000);
+}
+
+/**
+ * Enter pack play mode. Swaps gameState.today with the pack game state so all
+ * existing render/submit logic works without modification.
+ */
+async function enterPackMode(pack, puzzleIndex) {
+  const packId = pack.id;
+  const key    = packState.unlocked[packId]?.key ?? null;
+
+  // Initialise pack progress entry
+  if (!packState.progress[packId]) {
+    packState.progress[packId] = { games: {} };
+  }
+  const progress = packState.progress[packId];
+  if (!progress.games[puzzleIndex]) {
+    progress.games[puzzleIndex] = { guesses: [], status: 'in_progress' };
+  }
+  const gameRef = progress.games[puzzleIndex];
+
+  // Swap gameState.today so existing rendering functions work with pack game
+  gameState._savedDaily = gameState.today;
+  gameState.today       = gameRef;
+
+  packMode = { packId, packObj: pack, puzzleIndex, key, gameRef };
+
+  closeAllModals();
+
+  // Load the pack puzzle from the API
+  try {
+    const params = new URLSearchParams({ packId, index: puzzleIndex });
+    if (key) params.set('key', key);
+    const res = await fetch(`${API_PACK_PUZZLES}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    puzzle = await res.json();
+  } catch {
+    showToast('Could not load puzzle. Please try again.');
+    exitPackMode();
+    return;
+  }
+
+  currentGuess = [];
+  renderPackBanner();
+  showEl('game-ui');
+  render();
+
+  // If this puzzle was already completed, show the end state
+  if (gameRef.status !== 'in_progress') {
+    setTimeout(() => showPackEndModal(gameRef.status === 'won'), 300);
+  }
+}
+
+/**
+ * Exit pack mode and return to the daily puzzle.
+ */
+async function exitPackMode() {
+  if (!packMode) return;
+
+  savePackState();
+
+  // Restore daily game state
+  if (gameState._savedDaily !== undefined) {
+    gameState.today = gameState._savedDaily;
+    delete gameState._savedDaily;
+  }
+
+  packMode = null;
+  closeAllModals();
+  renderPackBanner(); // hides the banner
+
+  // Restore daily puzzle (cache first, then API)
+  if (!restoreDailyPuzzle()) {
+    await loadPuzzle();
+  }
+
+  currentGuess = [];
+  if (puzzle) {
+    render();
+    updateSubmitBtn();
+    if (gameState.today && gameState.today.status !== 'in_progress') {
+      setTimeout(() => showEndModal(), 300);
+    }
+  }
+}
+
+/** Update the pack mode banner above the board. */
+function renderPackBanner() {
+  const banner = document.getElementById('pack-banner');
+  const textEl = document.getElementById('pack-banner-text');
+  if (!banner) return;
+
+  if (!packMode) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  const { packObj, puzzleIndex } = packMode;
+  const total = packObj.puzzleCount;
+  textEl.innerHTML = '';
+  const bannerIcon = document.createElement('img');
+  bannerIcon.src = `/icons/${packIconName(packObj.id)}.svg`;
+  bannerIcon.className = 'icon pack-icon';
+  bannerIcon.setAttribute('alt', '');
+  bannerIcon.setAttribute('aria-hidden', 'true');
+  textEl.appendChild(bannerIcon);
+  const label = total !== null
+    ? ` ${packObj.name} — Puzzle ${puzzleIndex + 1}/${total}`
+    : ` ${packObj.name}`;
+  textEl.appendChild(document.createTextNode(label));
+  banner.classList.remove('hidden');
+}
+
+/** Show the pack-specific end-of-puzzle modal. */
+function showPackEndModal(won) {
+  const { packObj, puzzleIndex, gameRef } = packMode;
+  const total  = packObj.puzzleCount;
+  const isLast = total !== null && puzzleIndex >= total - 1;
+
+  const titleEl  = document.getElementById('pack-end-title');
+  const msgEl    = document.getElementById('pack-end-msg');
+  const solEl    = document.getElementById('pack-end-solution');
+  const nextBtn  = document.getElementById('pack-next-btn');
+  const backBtn  = document.getElementById('pack-back-btn');
+
+  if (won) {
+    const guessCount = gameRef.guesses.length;
+    titleEl.textContent = guessCount === 1 ? 'Genius!'    :
+                          guessCount <= 2  ? 'Amazing!'   :
+                          guessCount <= 3  ? 'Splendid!'  :
+                          guessCount <= 4  ? 'Great!'     : 'Got it!';
+    msgEl.textContent = total !== null
+      ? `Puzzle ${puzzleIndex + 1} of ${total} complete.`
+      : 'Puzzle complete.';
+    if (solEl) solEl.classList.add('hidden');
+  } else {
+    titleEl.textContent = 'Better luck next time';
+    msgEl.textContent   = total !== null
+      ? `Puzzle ${puzzleIndex + 1} of ${total}.`
+      : 'Better luck next time.';
+    if (solEl && puzzle) {
+      solEl.textContent = 'Solution: ' + puzzle.solution.map(formatOp).join(' ');
+      solEl.classList.remove('hidden');
+    }
+  }
+
+  if (nextBtn) {
+    nextBtn.hidden  = isLast;
+    nextBtn.onclick = () => {
+      closeAllModals();
+      enterPackMode(packObj, puzzleIndex + 1);
+    };
+  }
+
+  if (backBtn) {
+    backBtn.onclick = exitPackMode;
+  }
+
+  openModal('pack-end-modal');
+}
+
+// ── Pack browser ──────────────────────────────────────────────────────────────
+
+/** Map a pack ID to its icon filename (without .svg extension). */
+function packIconName(packId) {
+  const icons = {
+    practice: 'practice',
+    loyal:    'flame',
+    hard:     'hard',
+    expert:   'expert',
+    archive:  'archive',
+  };
+  return icons[packId] || 'packs';
+}
+
+/** Open the pack browser modal, fetching the catalog if needed. */
+async function openPackBrowser() {
+  if (!packCatalog) {
+    try {
+      const res = await fetch(API_PACKS);
+      if (res.ok) {
+        const data = await res.json();
+        packCatalog = Array.isArray(data) ? data : data.packs;
+      }
+    } catch {
+      // Leave packCatalog null
+    }
+  }
+
+  if (!packCatalog) {
+    showToast('Could not load packs. Check your connection.');
+    return;
+  }
+
+  // Auto-unlock free packs
+  packCatalog.forEach(pack => {
+    if (pack.unlock.type === 'free' && !packState.unlocked[pack.id]) {
+      packState.unlocked[pack.id] = { type: 'free' };
+      savePackState();
+    }
+  });
+
+  populatePackBrowser();
+  openModal('packs-modal');
+}
+
+/** Render pack cards into #packs-list. */
+function populatePackBrowser() {
+  const list = document.getElementById('packs-list');
+  if (!list || !packCatalog) return;
+  list.innerHTML = '';
+
+  packCatalog.forEach((pack, idx) => {
+    const card = document.createElement('div');
+    card.className = 'pack-card';
+
+    // Info section
+    const info    = document.createElement('div');
+    info.className = 'pack-info';
+
+    const nameEl  = document.createElement('div');
+    nameEl.className  = 'pack-name';
+    const iconImg = document.createElement('img');
+    iconImg.src = `/icons/${packIconName(pack.id)}.svg`;
+    iconImg.className = 'icon pack-icon';
+    iconImg.setAttribute('alt', '');
+    iconImg.setAttribute('aria-hidden', 'true');
+    nameEl.appendChild(iconImg);
+    nameEl.appendChild(document.createTextNode(` ${pack.name}`));
+
+    const descEl  = document.createElement('div');
+    descEl.className  = 'pack-desc';
+    descEl.textContent = pack.description;
+
+    info.appendChild(nameEl);
+    info.appendChild(descEl);
+
+    if (pack.puzzleCount) {
+      const countEl = document.createElement('div');
+      countEl.className  = 'pack-count';
+      countEl.textContent = `${pack.puzzleCount} puzzles`;
+      info.appendChild(countEl);
+    }
+
+    // Actions section
+    const actions   = document.createElement('div');
+    actions.className = 'pack-actions';
+    const isUnlocked  = !!packState.unlocked[pack.id];
+
+    if (pack.id === 'archive') {
+      // Archive: separate date-browser flow
+      if (isUnlocked) {
+        actions.appendChild(makePackBtn('Browse Archive', 'btn-primary', () => {
+          openArchiveBrowser();
+        }));
+      } else {
+        actions.appendChild(makePackBtn('Buy $1', 'btn-primary', () => startCheckout(pack.id)));
+        actions.appendChild(makePackBtn('Enter Key', 'btn-secondary', () => openKeyEntry(pack.id)));
+      }
+    } else if (pack.unlock.type === 'free' || isUnlocked && pack.unlock.type === 'streak') {
+      const startIdx = getPackCurrentIndex(pack.id);
+      actions.appendChild(makePackBtn('Play', 'btn-primary', () => enterPackMode(pack, startIdx)));
+    } else if (pack.unlock.type === 'streak') {
+      const lockImg = document.createElement('img');
+      lockImg.src = '/icons/lock.svg';
+      lockImg.className = 'icon';
+      lockImg.setAttribute('alt', 'locked');
+      const lockEl = document.createElement('div');
+      lockEl.className = 'pack-lock';
+      lockEl.appendChild(lockImg);
+      lockEl.appendChild(document.createTextNode(` ${gameState.streak.current}/${pack.unlock.streakDays} day streak`));
+      actions.appendChild(lockEl);
+    } else if (pack.unlock.type === 'purchase') {
+      if (isUnlocked) {
+        const startIdx = getPackCurrentIndex(pack.id);
+        actions.appendChild(makePackBtn('Play', 'btn-primary', () => enterPackMode(pack, startIdx)));
+      } else {
+        actions.appendChild(makePackBtn('Buy $1', 'btn-primary', () => startCheckout(pack.id)));
+        actions.appendChild(makePackBtn('Enter Key', 'btn-secondary', () => openKeyEntry(pack.id)));
+      }
+    }
+
+    card.appendChild(info);
+    card.appendChild(actions);
+    list.appendChild(card);
+
+    // Divider between cards
+    if (idx < packCatalog.length - 1) {
+      const hr = document.createElement('hr');
+      hr.className = 'pack-divider';
+      list.appendChild(hr);
+    }
+  });
+}
+
+/** Create a pack action button. */
+function makePackBtn(label, className, onClick) {
+  const btn = document.createElement('button');
+  btn.className   = className;
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+/**
+ * Return the index of the next unplayed puzzle in a pack.
+ * Scans progress.games for the first incomplete index.
+ */
+function getPackCurrentIndex(packId) {
+  const progress = packState.progress[packId];
+  if (!progress || !progress.games) return 0;
+  const wonIndices = Object.entries(progress.games)
+    .filter(([, g]) => g.status === 'won')
+    .map(([i]) => parseInt(i, 10));
+  if (!wonIndices.length) return 0;
+  return Math.max(...wonIndices) + 1;
+}
+
+// ── Key entry ─────────────────────────────────────────────────────────────────
+
+/** Open the license key entry modal for a given pack. */
+function openKeyEntry(packId) {
+  const titleEl   = document.getElementById('key-entry-title');
+  const input     = document.getElementById('key-input');
+  const errorEl   = document.getElementById('key-error');
+  const submitBtn = document.getElementById('key-submit-btn');
+
+  if (titleEl) {
+    const pack = packCatalog?.find(p => p.id === packId);
+    titleEl.textContent = pack ? `Unlock ${pack.name}` : 'Unlock Pack';
+  }
+  if (input)   input.value = '';
+  if (errorEl) { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
+
+  if (submitBtn) {
+    // Replace old onclick to avoid stale packId closure
+    const newBtn = submitBtn.cloneNode(true);
+    submitBtn.parentNode.replaceChild(newBtn, submitBtn);
+    newBtn.addEventListener('click', async () => {
+      const key = (input?.value || '').trim().toUpperCase();
+      if (!key) return;
+      newBtn.disabled    = true;
+      newBtn.textContent = 'Checking…';
+      const { success, error } = await redeemKey(key, packId);
+      newBtn.disabled    = false;
+      newBtn.textContent = 'Unlock Pack';
+      if (success) {
+        closeAllModals();
+        showToast('Pack unlocked! 🎉');
+        openPackBrowser();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = error || 'Invalid key. Please check and try again.';
+          errorEl.classList.remove('hidden');
+        }
+      }
+    });
+  }
+
+  openModal('key-entry-modal');
+}
+
+/** Call /api/redeem and update local pack state on success. */
+async function redeemKey(key, packId) {
+  try {
+    const res  = await fetch(API_REDEEM, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ key, packId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || 'Redemption failed.' };
+    }
+    packState.unlocked[packId] = { type: 'purchase', key };
+    savePackState();
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+}
+
+// ── Checkout (embedded Stripe Payment Element — no redirect) ──────────────────
+
+/**
+ * Lazily load Stripe.js from stripe.com. Returns the Stripe constructor or
+ * null on failure. Loaded on demand so it only hits the network when the user
+ * actually opens checkout.
+ */
+function loadStripeJs() {
+  return new Promise(resolve => {
+    if (window.Stripe) { resolve(window.Stripe); return; }
+    const script    = document.createElement('script');
+    script.src      = 'https://js.stripe.com/v3/';
+    script.onload   = () => resolve(window.Stripe);
+    script.onerror  = () => resolve(null);
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Return a Stripe Elements appearance config that matches the current theme.
+ */
+function stripeAppearance() {
+  const dark = document.documentElement.classList.contains('dark');
+  return {
+    theme: dark ? 'night' : 'stripe',
+    variables: {
+      colorPrimary:  '#6aaa64',
+      fontFamily:    "'Clear Sans', 'Helvetica Neue', Arial, sans-serif",
+      borderRadius:  '6px',
+    },
+  };
+}
+
+/**
+ * Open the embedded Stripe Payment Element modal for a paid pack.
+ * Flow: create PaymentIntent → mount PaymentElement → confirm → /api/fulfill → unlock.
+ * Zero page navigation — the pack unlocks right inside the modal.
+ */
+async function startCheckout(packId) {
+  // ── 1. Fetch publishable key ────────────────────────────────────────────────
+  let stripePk;
+  try {
+    const cfgRes = await fetch('/api/config');
+    if (!cfgRes.ok) throw new Error(`HTTP ${cfgRes.status}`);
+    const cfg = await cfgRes.json();
+    stripePk  = cfg.stripePk;
+  } catch {
+    showToast('Checkout unavailable. Please try again.');
+    return;
+  }
+  if (!stripePk) {
+    showToast('Payment not configured. Contact support.');
+    return;
+  }
+
+  // ── 2. Create PaymentIntent ─────────────────────────────────────────────────
+  let clientSecret;
+  try {
+    const piRes = await fetch('/api/payment-intent', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ packId }),
+    });
+    if (!piRes.ok) throw new Error(`HTTP ${piRes.status}`);
+    clientSecret = (await piRes.json()).clientSecret;
+  } catch {
+    showToast('Could not start checkout. Please try again.');
+    return;
+  }
+
+  // ── 3. Populate and open modal ──────────────────────────────────────────────
+  const pack       = packCatalog?.find(p => p.id === packId);
+  const titleEl    = document.getElementById('checkout-title');
+  const descEl     = document.getElementById('checkout-pack-desc');
+  const mountEl    = document.getElementById('payment-element');
+  const errorEl    = document.getElementById('payment-error');
+
+  if (titleEl) titleEl.textContent = pack ? `Unlock ${pack.name}` : 'Unlock Pack';
+  if (descEl)  descEl.textContent  = pack ? pack.description : '';
+  if (mountEl) mountEl.innerHTML   = '';
+  if (errorEl) errorEl.classList.add('hidden');
+
+  openModal('checkout-modal');
+
+  // ── 4. Load Stripe.js and mount Payment Element ─────────────────────────────
+  const StripeConstructor = await loadStripeJs();
+  if (!StripeConstructor) {
+    showToast('Could not load payment form. Check your connection.');
+    closeAllModals();
+    return;
+  }
+
+  const stripe   = StripeConstructor(stripePk);
+  const elements = stripe.elements({ clientSecret, appearance: stripeAppearance() });
+  const paymentElement = elements.create('payment');
+  if (mountEl) paymentElement.mount('#payment-element');
+
+  // ── 5. Wire Pay button ──────────────────────────────────────────────────────
+  // Clone to clear any previous listener from a prior checkout attempt
+  const oldPayBtn = document.getElementById('pay-btn');
+  const payBtn    = oldPayBtn.cloneNode(true);
+  oldPayBtn.parentNode.replaceChild(payBtn, oldPayBtn);
+
+  payBtn.addEventListener('click', async () => {
+    payBtn.disabled    = true;
+    payBtn.textContent = 'Processing…';
+    if (errorEl) errorEl.classList.add('hidden');
+
+    // ── 6. Confirm payment (no redirect for card payments) ──────────────────
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {},
+      redirect: 'if_required',
+    });
+
+    if (confirmError) {
+      if (errorEl) {
+        errorEl.textContent = confirmError.message;
+        errorEl.classList.remove('hidden');
+      }
+      payBtn.disabled    = false;
+      payBtn.textContent = 'Pay $1.00';
+      return;
+    }
+
+    // ── 7. Fulfill: verify with server, get license key ─────────────────────
+    payBtn.textContent = 'Unlocking…';
+    let key;
+    try {
+      const fulfillRes = await fetch('/api/fulfill', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ paymentIntentId: paymentIntent.id }),
+      });
+      if (!fulfillRes.ok) throw new Error(`HTTP ${fulfillRes.status}`);
+      key = (await fulfillRes.json()).key;
+      packState.unlocked[packId] = { type: 'purchase', key };
+      savePackState();
+    } catch {
+      // Payment went through but key retrieval failed — tell user to check email
+      showToast('Payment received! Check your email for your license key.', 6000);
+      closeAllModals();
+      return;
+    }
+
+    closeAllModals();
+    showPurchaseSuccessModal(packId, key);
+  });
+}
+
+/**
+ * After Stripe checkout, the success URL includes ?pack_session=SESSION_ID.
+ * Poll /api/checkout-session until the webhook has stored the license key.
+ */
+async function handlePurchaseReturn() {
+  const params    = new URLSearchParams(window.location.search);
+  const sessionId = params.get('pack_session');
+  if (!sessionId) return;
+
+  // Clean the URL before showing any UI
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('pack_session');
+  window.history.replaceState({}, '', cleanUrl.toString());
+
+  showToast('Processing your purchase…', 5000);
+
+  let key    = null;
+  let packId = null;
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    await sleep(2500);
+    try {
+      const res = await fetch(`${API_CHECKOUT_SESSION}?id=${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        key    = data.key;
+        packId = data.packId;
+        break;
+      }
+    } catch {
+      // Retry
+    }
+  }
+
+  if (key && packId) {
+    packState.unlocked[packId] = { type: 'purchase', key };
+    savePackState();
+    showPurchaseSuccessModal(packId, key);
+  } else {
+    showToast('Check your email for your license key — it may take a moment.', 6000);
+  }
+}
+
+/** Show the purchase success modal with the user's license key. */
+function showPurchaseSuccessModal(packId, key) {
+  const keyEl  = document.getElementById('purchase-key-code');
+  const copyBtn = document.getElementById('copy-key-btn');
+  const playBtn = document.getElementById('go-play-pack-btn');
+
+  if (keyEl) keyEl.textContent = key;
+
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(key);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      } catch {
+        showToast('Could not copy — try manually.');
+      }
+    };
+  }
+
+  if (playBtn) {
+    playBtn.onclick = () => {
+      closeAllModals();
+      openPackBrowser();
+    };
+  }
+
+  openModal('purchase-success-modal');
+}
+
+// ── Archive browser ───────────────────────────────────────────────────────────
+
+/** Open the archive date browser. Fetches available dates from /api/archive. */
+async function openArchiveBrowser() {
+  closeAllModals();
+  const listEl = document.getElementById('archive-list');
+  if (listEl) listEl.innerHTML = '<p class="packs-loading">Loading dates…</p>';
+  openModal('archive-modal');
+
+  const key = packState.unlocked.archive?.key ?? null;
+  let dates;
+  try {
+    const params = key ? `?key=${encodeURIComponent(key)}` : '';
+    const res    = await fetch(`${API_ARCHIVE}${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    dates = Array.isArray(data.dates) ? data.dates : [];
+  } catch {
+    if (listEl) listEl.innerHTML = '<p class="packs-loading">Could not load archive dates.</p>';
+    return;
+  }
+
+  if (!listEl) return;
+  if (!dates.length) {
+    listEl.innerHTML = '<p class="packs-loading">No archive puzzles available yet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  dates.forEach(date => {
+    const btn = document.createElement('button');
+    btn.className   = 'archive-date-btn';
+    btn.textContent = date;
+    btn.addEventListener('click', () => enterArchiveMode(date, key));
+    listEl.appendChild(btn);
+  });
+}
+
+/** Enter play mode for an archive puzzle (a past daily). */
+async function enterArchiveMode(date, key) {
+  // Use a fake pack object for the banner/end modal
+  const archivePack = {
+    id:          'archive',
+    name:        'Daily Archive',
+    puzzleCount: null,
+  };
+
+  // Use date as puzzleIndex conceptually; store in a separate key
+  if (!packState.progress.archive) {
+    packState.progress.archive = { games: {} };
+  }
+  const progress = packState.progress.archive;
+  if (!progress.games[date]) {
+    progress.games[date] = { guesses: [], status: 'in_progress' };
+  }
+  const gameRef = progress.games[date];
+
+  gameState._savedDaily = gameState.today;
+  gameState.today       = gameRef;
+
+  packMode = { packId: 'archive', packObj: archivePack, puzzleIndex: date, key, gameRef };
+
+  closeAllModals();
+
+  try {
+    const params = new URLSearchParams({ date });
+    if (key) params.set('key', key);
+    const res = await fetch(`${API_ARCHIVE}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    puzzle = await res.json();
+  } catch {
+    showToast('Could not load that puzzle. Please try again.');
+    exitPackMode();
+    return;
+  }
+
+  currentGuess = [];
+  renderPackBanner();
+  showEl('game-ui');
+  render();
+
+  if (gameRef.status !== 'in_progress') {
+    setTimeout(() => showPackEndModal(gameRef.status === 'won'), 300);
+  }
 }
 
 // ── Keyboard ─────────────────────────────────────────────────────────────────
@@ -1134,6 +1934,10 @@ function applyInitialTheme() {
 function wireEventListeners() {
   document.getElementById('submit-btn')?.addEventListener('click', onSubmit);
 
+  document.getElementById('packs-btn')?.addEventListener('click', openPackBrowser);
+
+  document.getElementById('pack-back-link')?.addEventListener('click', exitPackMode);
+
   document.getElementById('streak-btn')?.addEventListener('click', showStats);
   document.getElementById('settings-btn')?.addEventListener('click', showSettings);
 
@@ -1181,6 +1985,7 @@ function wireEventListeners() {
 }
 
 async function init() {
+  packState = loadPackState();
   gameState = loadState();
   doDailyReset();
   applyInitialTheme();
@@ -1211,6 +2016,9 @@ async function init() {
   }
 
   wireEventListeners();
+
+  // Handle return from Stripe checkout (non-blocking)
+  handlePurchaseReturn();
 }
 
 document.addEventListener('DOMContentLoaded', init);
