@@ -194,7 +194,7 @@ Keyboard shortcuts: keys `1`–`9` map to pool indices 0–8; key `0` maps to in
 |---|---|---|
 | `LAUNCH_DATE` | `api/generate.js` | `'2026-05-23'` (puzzle #1) |
 | `LAUNCH_DATE` | `public/app.js` | `'2026-05-23'` (share text `#N`) |
-| App URL in share text | `public/app.js` `generateShareText()` | `reckon.app` |
+| App URL in share text | `public/app.js` `generateShareText()` | `window.location.host` (dynamic — no hardcoded domain) |
 | Source code link | `public/index.html` `#source-link` | update before launch |
 | Cron schedule | `vercel.json` | `"5 0 * * *"` (00:05 UTC) |
 

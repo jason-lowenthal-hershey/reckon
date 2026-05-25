@@ -1,6 +1,7 @@
 'use strict';
 
 const { list } = require('@vercel/blob');
+const { utcDateString } = require('../lib/utils');
 
 /**
  * GET /api/today
@@ -52,16 +53,3 @@ module.exports = async function handler(req, res) {
   return res.status(200).json(puzzle);
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Return today's UTC date as a YYYY-MM-DD string.
- */
-function utcDateString(date = new Date()) {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}

@@ -459,32 +459,73 @@ function updateCurrentRow() {
   }
 }
 
-/** Render pool tiles. */
+/**
+ * Build a Map from opKey → the best feedback code that op has received
+ * across all past guesses. Priority: G (2) > Y (1) > W (0).
+ * Ops that have never been played are absent from the Map.
+ */
+function getPoolFeedbackMap(guesses) {
+  const RANK = { G: 2, Y: 1, W: 0 };
+  const map  = new Map();
+  for (const guess of guesses) {
+    for (let i = 0; i < guess.ops.length; i++) {
+      const key  = opKey(guess.ops[i]);
+      const code = guess.feedback[i];
+      const curr = map.get(key);
+      if (curr === undefined || RANK[code] > RANK[curr]) {
+        map.set(key, code);
+      }
+    }
+  }
+  return map;
+}
+
+/** Render pool tiles with Wordle-style feedback coloring. */
 function renderPool() {
   const container = document.getElementById('pool-tiles');
   container.innerHTML = '';
 
   if (!puzzle) return;
 
-  const placedKeys = new Set(currentGuess.map(opKey));
-  const isOver     = gameState.today.status !== 'in_progress';
+  const placedKeys   = new Set(currentGuess.map(opKey));
+  const isOver       = gameState.today.status !== 'in_progress';
+  const feedbackMap  = getPoolFeedbackMap(gameState.today.guesses);
+  const solutionKeys = isOver ? new Set(puzzle.solution.map(opKey)) : null;
 
   // Key hint: 1–9 for indices 0–8, 0 for index 9
   const keyHint = idx => idx < 9 ? String(idx + 1) : '0';
 
   puzzle.pool.forEach((op, idx) => {
-    const isPlaced = placedKeys.has(opKey(op));
+    const key      = opKey(op);
+    const isPlaced = placedKeys.has(key);
     const btn      = document.createElement('button');
     btn.type       = 'button';
-    btn.className  = 'pool-tile' + (isPlaced ? ' placed' : '');
-    btn.dataset.op  = op.operator;   // used by CSS for family colours
+
+    // Determine state class
+    let stateClass = '';
+    if (isPlaced) {
+      stateClass = ' placed';
+    } else if (isOver) {
+      // Post-game: reveal which tiles were solution vs decoys
+      stateClass = solutionKeys.has(key) ? ' pool-in-solution' : ' pool-decoy';
+    } else {
+      // In-game: reflect best feedback this op has received so far
+      const fb = feedbackMap.get(key);
+      if      (fb === 'G') stateClass = ' pool-feedback-g';
+      else if (fb === 'Y') stateClass = ' pool-feedback-y';
+      else if (fb === 'W') stateClass = ' pool-feedback-w';
+      // else: neutral (op hasn't been played yet)
+    }
+
+    btn.className = 'pool-tile' + stateClass;
+    btn.setAttribute('data-op', op.operator); // kept for debugging/aria; no longer drives colors
     btn.setAttribute('aria-label', `${formatOp(op)}, press ${keyHint(idx)} to place`);
     btn.setAttribute('data-idx', idx);
 
     if (isPlaced || isOver) {
       btn.disabled = true;
     } else {
-      btn.addEventListener('click', () => onPoolTileClick(op, idx));
+      btn.addEventListener('click', () => onPoolTileClick(op));
     }
 
     // Operator symbol (large) + operand (smaller) — two-line visual
@@ -544,48 +585,24 @@ function onSlotClick(slotIndex) {
   updateSubmitBtn();
 }
 
-async function onSubmit() {
-  if (isAnimating) return;
-  if (currentGuess.length < OPS_PER_GUESS) return;
-  if (gameState.today.status !== 'in_progress') return;
-
-  isAnimating = true;
-  updateSubmitBtn();
-
-  // Evaluate guess
+/**
+ * Evaluate the current guess, append it to today's guesses, and return
+ * the computed values needed for animation and end-state handling.
+ * Returns { result, feedback, won }.
+ */
+function evaluateCurrentGuess() {
   const result   = applyAll(puzzle.start, currentGuess);
   const feedback = scoreGuess(currentGuess, puzzle.solution);
   const won      = Math.abs(result - puzzle.target) < FP_TOLERANCE;
+  gameState.today.guesses.push({ ops: [...currentGuess], result, feedback });
+  return { result, feedback, won };
+}
 
-  // Record guess
-  const guessRecord = {
-    ops:      [...currentGuess],
-    result,
-    feedback,
-  };
-  gameState.today.guesses.push(guessRecord);
-
-  // Animate reveal on the board row
-  const board        = document.getElementById('board');
-  const rows         = board.querySelectorAll('.board-row');
-  const currRowIndex = gameState.today.guesses.length - 1;
-  const currRow      = rows[currRowIndex];
-
-  if (currRow) {
-    const tiles = currRow.querySelectorAll('.tile');
-    await animateReveal(Array.from(tiles), feedback, currentGuess);
-
-    // Show numeric result
-    const resultDiv = currRow.querySelector('.row-result');
-    if (resultDiv) {
-      const displayVal = Math.round(result * 1e6) / 1e6;
-      resultDiv.textContent = '= ' + displayVal;
-    }
-  }
-
-  // Check end conditions
-  const lostNow = !won && gameState.today.guesses.length >= MAX_GUESSES;
-
+/**
+ * Update game status and streak, persist state, re-render, and show the
+ * end modal if the game is now over.
+ */
+async function resolveGameEnd(won, lostNow) {
   if (won) {
     gameState.today.status = 'won';
     updateStreak(true);
@@ -598,9 +615,10 @@ async function onSubmit() {
     saveState();
   }
 
-  currentGuess = [];
-
   if (won || lostNow) {
+    // Fire-and-forget: auto-reload at 00:06 UTC so the player gets the next
+    // puzzle even if they dismiss the modal and never manually refresh.
+    scheduleNextPuzzleReload();
     renderBoard();
     renderPool();
     updateSubmitBtn();
@@ -616,6 +634,37 @@ async function onSubmit() {
     updateSubmitBtn();
     isAnimating = false;
   }
+}
+
+async function onSubmit() {
+  if (isAnimating) return;
+  if (currentGuess.length < OPS_PER_GUESS) return;
+  if (gameState.today.status !== 'in_progress') return;
+
+  isAnimating = true;
+  updateSubmitBtn();
+
+  const { result, feedback, won } = evaluateCurrentGuess();
+  const lostNow = !won && gameState.today.guesses.length >= MAX_GUESSES;
+
+  // Animate reveal on the board row
+  const board        = document.getElementById('board');
+  const rows         = board.querySelectorAll('.board-row');
+  const currRowIndex = gameState.today.guesses.length - 1;
+  const currRow      = rows[currRowIndex];
+
+  if (currRow) {
+    const tiles = currRow.querySelectorAll('.tile');
+    await animateReveal(Array.from(tiles), feedback, currentGuess);
+
+    const resultDiv = currRow.querySelector('.row-result');
+    if (resultDiv) {
+      resultDiv.textContent = '= ' + (Math.round(result * 1e6) / 1e6);
+    }
+  }
+
+  currentGuess = [];
+  await resolveGameEnd(won, lostNow);
 }
 
 /**
@@ -726,7 +775,7 @@ function onKeydown(e) {
     if (poolIndex < puzzle.pool.length) {
       const op = puzzle.pool[poolIndex];
       if (!currentGuess.some(o => opEquals(o, op)) && currentGuess.length < OPS_PER_GUESS) {
-        onPoolTileClick(op, poolIndex);
+        onPoolTileClick(op);
       }
     }
     return;
@@ -830,9 +879,9 @@ function populateStats() {
     const row       = document.createElement('div');
     row.className   = 'dist-row';
 
-    const lbl       = document.createElement('div');
-    lbl.className   = 'dist-label';
-    lbl.textContent = n;
+    const labelEl       = document.createElement('div');
+    labelEl.className   = 'dist-label';
+    labelEl.textContent = n;
 
     const wrap      = document.createElement('div');
     wrap.className  = 'dist-bar-wrap';
@@ -847,7 +896,7 @@ function populateStats() {
 
     bar.appendChild(countEl);
     wrap.appendChild(bar);
-    row.appendChild(lbl);
+    row.appendChild(labelEl);
     row.appendChild(wrap);
     container.appendChild(row);
   });
@@ -894,6 +943,23 @@ function showEndModal() {
   openModal('end-modal');
 }
 
+/**
+ * Schedule an automatic page reload at 00:06 UTC (one minute after the cron
+ * generates the next puzzle at 00:05 UTC). Called whenever the game ends so
+ * the player always gets a fresh puzzle without needing to manually refresh —
+ * regardless of whether the end modal is open or has been dismissed.
+ */
+function scheduleNextPuzzleReload() {
+  const now         = new Date();
+  const nextPuzzle  = new Date();
+  // 00:06 UTC tomorrow — cron runs at 00:05, give it 60 s buffer
+  nextPuzzle.setUTCHours(24, 6, 0, 0);
+  const delay = nextPuzzle - now;
+  if (delay > 0) {
+    setTimeout(() => location.reload(), delay);
+  }
+}
+
 function startCountdown() {
   const countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
@@ -905,8 +971,10 @@ function startCountdown() {
     const diff       = midnight - now;
 
     if (diff <= 0) {
-      countdownEl.textContent = 'New puzzle available! Refresh to play.';
+      countdownEl.textContent = 'New puzzle is ready — loading…';
       if (countdownInterval) clearInterval(countdownInterval);
+      // Auto-reload so the player doesn't have to manually refresh.
+      setTimeout(() => location.reload(), 1500);
       return;
     }
 
@@ -916,7 +984,7 @@ function startCountdown() {
     const hh = String(h).padStart(2, '0');
     const mm = String(m).padStart(2, '0');
     const ss = String(s).padStart(2, '0');
-    countdownEl.textContent = `Next puzzle in ${hh}:${mm}:${ss}`;
+    countdownEl.textContent = `Next puzzle in ${hh}:${mm}:${ss} (UTC)`;
   }
 
   updateCountdown();
@@ -941,7 +1009,7 @@ function generateShareText() {
     guess.feedback.map(code => FEEDBACK_EMOJI[code] || '⬜').join('')
   ).join('\n');
 
-  return `${titleLine}\n${rows}\n\nreckon.app`;
+  return `${titleLine}\n${rows}\n\n${window.location.host}`;
 }
 
 async function share() {
@@ -1043,92 +1111,52 @@ function applySettings() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-async function init() {
-  gameState = loadState();
-  doDailyReset();
-
-  // Apply theme: use saved pref, or fall back to system
-  if (!Object.hasOwn(gameState.settings, 'darkMode') ||
-      gameState.settings.darkMode === false) {
-    // Check if user had ever explicitly toggled dark mode; if not, check system
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    // Only auto-apply system pref if user hasn't explicitly set it before
-    // (we detect "explicit set" by checking if there's saved state with a non-false darkMode)
-    const hasSavedPref = (() => {
-      try {
-        const raw = localStorage.getItem(STORAGE_STATE);
-        if (!raw) return false;
-        const parsed = JSON.parse(raw);
-        return parsed && parsed.settings && Object.hasOwn(parsed.settings, 'darkMode');
-      } catch { return false; }
-    })();
-    if (!hasSavedPref) {
-      gameState.settings.darkMode = systemDark;
-    }
+/**
+ * On first load, auto-apply the system dark-mode preference if the user
+ * has never explicitly toggled the setting.
+ */
+function applyInitialTheme() {
+  if (gameState.settings.darkMode !== false) return;
+  const hasSavedPref = (() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_STATE);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return parsed && parsed.settings && Object.hasOwn(parsed.settings, 'darkMode');
+    } catch { return false; }
+  })();
+  if (!hasSavedPref) {
+    gameState.settings.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
-  applySettings();
-  updateStreakBadge();
+}
 
-  // Load puzzle from API/cache
-  await loadPuzzle();
-
-  if (puzzle) {
-    showEl('game-ui');
-    render();
-
-    // Restore current guess (if somehow cleared between operations — nothing to restore;
-    // guesses already in today.guesses are past rows)
-    currentGuess = [];
-    updateSubmitBtn();
-
-    // Auto-show end modal if game is already over from a previous session
-    if (gameState.today.status !== 'in_progress') {
-      // Small delay to let the board render first
-      setTimeout(() => showEndModal(), 300);
-    } else if (!gameState.seenOnboarding) {
-      // First-time onboarding
-      gameState.seenOnboarding = true;
-      saveState();
-      showOnboarding();
-    }
-  }
-
-  // ── Event listeners ──────────────────────────────────────────────────────
-
-  // Submit
+/** Wire up all DOM event listeners for the lifetime of the app. */
+function wireEventListeners() {
   document.getElementById('submit-btn')?.addEventListener('click', onSubmit);
 
-  // Header buttons
   document.getElementById('streak-btn')?.addEventListener('click', showStats);
   document.getElementById('settings-btn')?.addEventListener('click', showSettings);
 
-  // Keyboard
   document.addEventListener('keydown', onKeydown);
 
-  // Modal close buttons
   document.querySelectorAll('.modal-close').forEach(btn => {
     btn.addEventListener('click', closeAllModals);
   });
 
-  // Modal overlay click to close
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeAllModals();
     });
   });
 
-  // Share button
   document.getElementById('share-btn')?.addEventListener('click', share);
 
-  // Onboarding "Let's Play!" button
   document.getElementById('start-playing-btn')?.addEventListener('click', closeAllModals);
 
-  // Settings toggles
   document.getElementById('cb-toggle')?.addEventListener('change', (e) => {
     gameState.settings.colorBlindMode = e.target.checked;
     saveState();
     applySettings();
-    // Re-render board so tile classes update
     if (puzzle) renderBoard();
   });
 
@@ -1138,21 +1166,51 @@ async function init() {
     applySettings();
   });
 
-  // "How to Play" link in settings
   document.getElementById('how-to-play-link')?.addEventListener('click', (e) => {
     e.preventDefault();
     closeAllModals();
     showOnboarding();
   });
 
-  // Retry buttons (reload page)
   document.getElementById('retry-btn')?.addEventListener('click',   () => location.reload());
   document.getElementById('retry-btn-2')?.addEventListener('click', () => location.reload());
 
-  // Escape key closes modals
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeAllModals();
   });
+}
+
+async function init() {
+  gameState = loadState();
+  doDailyReset();
+  applyInitialTheme();
+  applySettings();
+  updateStreakBadge();
+
+  await loadPuzzle();
+
+  if (puzzle) {
+    showEl('game-ui');
+    render();
+
+    // Reset current guess for the new row.
+    currentGuess = [];
+    updateSubmitBtn();
+
+    if (gameState.today.status !== 'in_progress') {
+      // Small delay to let the board render first.
+      setTimeout(() => showEndModal(), 300);
+      // Ensure the page reloads at 00:06 UTC even if the user never
+      // re-opens the modal (e.g. they reload the page after winning).
+      scheduleNextPuzzleReload();
+    } else if (!gameState.seenOnboarding) {
+      gameState.seenOnboarding = true;
+      saveState();
+      showOnboarding();
+    }
+  }
+
+  wireEventListeners();
 }
 
 document.addEventListener('DOMContentLoaded', init);

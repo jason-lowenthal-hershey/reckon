@@ -49,5 +49,18 @@ Run a SOLID + Clean Code audit on the repository before allowing a commit or pus
 
    Block (verdict = BLOCK) if: lint fails, tests fail, any critical puzzle-privacy violation exists, or there are more than 3 SOLID/Clean Code findings. For 1–3 minor findings, verdict is PASS with a warning listing the suggestions for the author to decide on.
 
-7. If the verdict is PASS, confirm: "Audit passed. You may now commit and push."
-   If the verdict is BLOCK, do not offer to commit or push — wait for the user to fix the issues and re-run `/solid-clean-audit`.
+7. **Address all findings immediately** — do not stop after reporting. For every finding listed (BLOCK or PASS-with-warnings), apply the fix in-line right now:
+
+   - **Names** (`lbl`, `tmp`, etc.) — rename with a search-and-replace Edit. Update every reference in the file.
+   - **DRY** (duplicated helpers) — extract to a shared module (e.g. `lib/utils.js`), require it from both call sites, delete the local copies, and add tests for the new module in `tests/`.
+   - **S — oversized function** — extract the distinct concern(s) into a new named function placed immediately before the original. Rewrite the original to call the extracted function(s). Keep the extracted function in the same file unless it is reused across files.
+   - **I — unused parameter** — remove the extra argument from the call site (or add it to the function signature if it was always intended to be used).
+   - **Comments** — rewrite misleading or restating comments in place.
+   - **O / D / L** — propose and apply the smallest refactor that removes the flag (e.g. a lookup table replacing a switch, or injecting a dependency via a parameter).
+   - **Puzzle privacy** — remove the offending log line immediately; this is a CRITICAL fix.
+
+   After applying all fixes, re-run `npm run lint` and `npm test`. If either fails, fix the regression before continuing.
+
+8. If the verdict was PASS (including after fixing warnings), confirm: "All findings addressed. Audit passed. You may now commit and push."
+   If the verdict was BLOCK, confirm after fixing: "All findings addressed and verified. You may now commit and push."
+   Do not offer to commit or push until lint and tests are green post-fix.

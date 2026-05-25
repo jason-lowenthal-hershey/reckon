@@ -527,20 +527,6 @@ html.color-blind .solution-row .tiles .tile {
   user-select: none;
 }
 
-/* Operator-family accent colours */
-.pool-tile[data-op="+"],
-.pool-tile[data-op="-"] {
-  background: var(--pool-add-bg);
-  border-color: var(--pool-add-border);
-  color: var(--pool-add-text);
-}
-
-.pool-tile[data-op="*"],
-.pool-tile[data-op="/"] {
-  background: var(--pool-mul-bg);
-  border-color: var(--pool-mul-border);
-  color: var(--pool-mul-text);
-}
 
 .pool-tile:hover:not(:disabled) {
   transform: translateY(-2px);
@@ -560,6 +546,47 @@ html.color-blind .solution-row .tiles .tile {
   cursor: default;
   pointer-events: none;
   opacity: 0.35;
+}
+
+/* Pool tile: in-game feedback states (Wordle-style) */
+.pool-tile.pool-feedback-g {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--text-on-color);
+}
+
+.pool-tile.pool-feedback-y {
+  background: var(--color-yellow);
+  border-color: var(--color-yellow);
+  color: var(--text-on-color);
+}
+
+.pool-tile.pool-feedback-w {
+  opacity: 0.4;
+}
+
+/* Pool tile: post-game reveal — solution vs decoy */
+.pool-tile.pool-in-solution {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--text-on-color);
+}
+
+.pool-tile.pool-decoy {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+/* Color-blind overrides for pool feedback */
+html.color-blind .pool-tile.pool-feedback-g,
+html.color-blind .pool-tile.pool-in-solution {
+  background: var(--color-blue-cb);
+  border-color: var(--color-blue-cb);
+}
+
+html.color-blind .pool-tile.pool-feedback-y {
+  background: var(--color-orange-cb);
+  border-color: var(--color-orange-cb);
 }
 
 /* Two-line op display */

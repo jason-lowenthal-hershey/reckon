@@ -2,6 +2,7 @@
 
 const { put, list } = require('@vercel/blob');
 const { generatePuzzle } = require('../lib/generator');
+const { utcDateString } = require('../lib/utils');
 
 const LAUNCH_DATE = '2026-05-23'; // Launch day is puzzle #1
 
@@ -99,16 +100,6 @@ module.exports = async function handler(req, res) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Return today's UTC date as a YYYY-MM-DD string.
- */
-function utcDateString(date = new Date()) {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 /**
  * Return the number of days elapsed since LAUNCH_DATE.
